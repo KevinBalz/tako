@@ -10,3 +10,6 @@
 [submodule "dependencies/glfw"]
 	path = dependencies/glfw
 	url = https://github.com/glfw/glfw.git
+[submodule "dependencies/wren/wren"]
+	path = dependencies/wren/wren
+	url = https://github.com/wren-lang/wren.git

@@ -219,6 +219,7 @@ endif(TAKO_EDITOR)
 
 
 target_link_libraries(${TAKO_DLL} PUBLIC fmt)
+target_link_libraries(${TAKO_DLL} PUBLIC wren)
 
 add_executable(ECSBench "test/ECSBench.cpp")
 target_link_libraries(ECSBench PRIVATE tako)
