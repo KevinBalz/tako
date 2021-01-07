@@ -14,9 +14,11 @@
 
 namespace tako
 {
+	/*
 	extern void Setup(PixelArtDrawer* drawer, Resources* resources);
 	extern void Update(Input* input, float dt);
 	extern void Draw(PixelArtDrawer* drawer);
+	 */
 
 #ifdef TAKO_OPENGL
 	static tako::PixelArtDrawer* Graphics;

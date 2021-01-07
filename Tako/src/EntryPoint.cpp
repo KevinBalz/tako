@@ -10,11 +10,13 @@
 #ifdef TAKO_EDITOR
 #include "FileWatcher.hpp"
 #endif
+#include "WrenScriptContext.hpp"
 
 namespace tako
 {
 	struct TickStruct
 	{
+		tako::WrenScriptContext* scriptContext;
 		tako::Window& window;
 		tako::GraphicsContext& context;
 		tako::PixelArtDrawer* drawer;
@@ -45,8 +47,8 @@ namespace tako
 #endif
 		data->window.Poll();
 		data->input.Update();
-		tako::Update(&data->input, dt);
-		tako::Draw(data->drawer);
+		data->scriptContext->Update(&data->input, dt);
+		data->scriptContext->Draw(data->drawer);
 		data->context.Present();
 	}
 
@@ -62,7 +64,9 @@ namespace tako
 		Audio audio;
 		audio.Init();
 		Resources resources(context.get());
-		tako::Setup(drawer, &resources);
+		WrenScriptContext scriptContext;
+		scriptContext.Load("/main.wren");
+		scriptContext.Setup(drawer, &resources);
 		tako::Broadcaster broadcaster;
 #ifdef TAKO_EDITOR
 		tako::FileWatcher watcher("./Assets");
@@ -104,6 +108,7 @@ namespace tako
 
 		TickStruct data
 		{
+			&scriptContext,
 			window,
 			*context,
 			drawer,

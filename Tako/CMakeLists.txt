@@ -34,6 +34,8 @@ add_library(${TAKO_DLL}
 	"include/GraphicsAPI.hpp"
 	"include/IGraphicsContext.hpp"
 	"include/SmallVec.hpp"
+	"include/WrenScriptContext.hpp"
+	"src/WrenScriptContext.cpp"
 )
 
 function(set_feature define val)
