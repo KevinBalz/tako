@@ -19,14 +19,16 @@ namespace tako
 		WrenHandle* m_setupHandle = nullptr;
 		WrenHandle* m_updateHandle = nullptr;
 		WrenHandle* m_drawHandle = nullptr;
+		WrenHandle* m_drawerHandle = nullptr;
 		WrenVM* m_vm;
 
-		PixelArtDrawer* m_drawer = nullptr;
-
 		static WrenForeignMethodFn BindForeignMethodFn(WrenVM* vm, const char* module, const char* className, bool isStatic, const char* signature);
+		static WrenForeignClassMethods BindForeignClass(WrenVM* vm, const char* module, const char* className);
 		static void SetSetup(WrenVM* vm);
 		static void SetUpdate(WrenVM* vm);
 		static void SetDraw(WrenVM* vm);
+
+		static void NewColor(WrenVM* vm);
 
 		static void DrawRect(WrenVM* vm);
 	};
