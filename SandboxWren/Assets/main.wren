@@ -16,6 +16,7 @@ Tako.update {|dt|
 System.print("%(blue.r) %(blue.g) %(blue.b) %(blue.a)")
 
 Tako.draw {|drawer|
+    drawer.clear()
     drawer.drawRect(50, 50, 50, 50, red)
     drawer.drawRect(x, 0, 16, 16, blue)
 }

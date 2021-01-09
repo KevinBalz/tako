@@ -1,10 +1,145 @@
 #include "WrenScriptContext.hpp"
 #include "Utility.hpp"
 
+template<typename T>
+auto WrenGet(WrenVM* vm, int slot)
+{
+	if constexpr (std::is_same_v<bool, T>)
+	{
+		return wrenGetSlotBool(vm, slot);
+	}
+	else if constexpr (std::is_convertible_v<double, T>)
+	{
+		return static_cast<T>(wrenGetSlotDouble(vm, slot));
+	}
+	else if constexpr (std::is_class_v<T>)
+	{
+		return static_cast<T*>(wrenGetSlotForeign(vm, slot));
+	}
+	else
+	{
+		ASSERT(false);
+	}
+}
+
+template<typename T>
+auto WrenGetLiteral(WrenVM* vm, int slot)
+{
+	if constexpr (std::is_same_v<bool, T>)
+	{
+		LOG("slot {} {}", slot, "bool");
+		return wrenGetSlotBool(vm, slot);
+	}
+	else if constexpr (std::is_convertible_v<double, T>)
+	{
+		LOG("slot {} {}", slot, "number");
+		return static_cast<T>(wrenGetSlotDouble(vm, slot));
+	}
+	else if constexpr (std::is_class_v<T>)
+	{
+		LOG("slot {} {}", slot, "class");
+		return *static_cast<T*>(wrenGetSlotForeign(vm, slot));
+	}
+	else
+	{
+		ASSERT(false);
+	}
+}
+
+template<typename T>
+void WrenSet(WrenVM* vm, int slot, T value)
+{
+	if constexpr (std::is_same_v<bool, T>)
+	{
+		wrenSetSlotBool(vm, slot, value);
+	}
+	else if constexpr (std::is_convertible_v<T, double>)
+	{
+		wrenSetSlotDouble(vm, slot, value);
+	}
+	/*
+	else if constexpr (std::is_class_v<T>)
+	{
+		return static_cast<T *>(wrenGetSlotForeign(vm, slot));
+	}
+	*/
+	else
+	{
+		ASSERT(false);
+	}
+}
+
+template<typename P> struct MemberFieldTraits;
+template<typename R, typename T>
+struct MemberFieldTraits<R (T::*)>
+{
+	typedef R ret;
+	typedef T type;
+};
+
+template<typename T> using ClassFieldPtrClass = typename MemberFieldTraits<T>::type;
+template<typename T> using ClassFieldPtrType = typename MemberFieldTraits<T>::ret;
+
+template<typename P> struct MemberPtrTraits;
+template<typename R, typename T, typename... Args>
+struct MemberPtrTraits<R (T::*)(Args...)>
+{
+	typedef R ret;
+	typedef T type;
+	typedef std::tuple<Args...> args;
+	typedef std::make_index_sequence<sizeof...(Args)> argSequence;
+};
+
+template<typename T> using ClassMethodPtrClass = typename MemberPtrTraits<T>::type;
+template<typename T> using ClassMethodPtrReturn = typename MemberPtrTraits<T>::ret;
+template<typename T, size_t N> using ClassMethodPtrArg = typename std::tuple_element<N, typename MemberPtrTraits<T>::args>::type;
+template<typename T> using ClassMethodPtrArgsSeq = typename MemberPtrTraits<T>::argSequence;
+
+
+template<auto fPtr>
+void WrenFieldGetter(WrenVM* vm)
+{
+	auto value = WrenGet<ClassFieldPtrClass<decltype(fPtr)>>(vm, 0);
+	WrenSet(vm, 0, value->*fPtr);
+}
+
+template<auto fPtr>
+void WrenFieldSetter(WrenVM* vm)
+{
+	auto obj = WrenGet<ClassFieldPtrClass<decltype(fPtr)>>(vm, 0);
+	obj->*fPtr = WrenGet<ClassFieldPtrType<decltype(fPtr)>>(vm, 1);
+}
+
+template<typename T, typename R, auto mPtr, std::size_t... I>
+void WrenMethodCaller(WrenVM* vm, std::index_sequence<I...>)
+{
+	auto obj = WrenGet<T>(vm, 0);
+	if constexpr (std::is_void_v<R>)
+	{
+		(obj->*mPtr)(WrenGetLiteral<ClassMethodPtrArg<decltype(mPtr),I>>(vm, I+1)...);
+	}
+	else
+	{
+		auto ret = (obj->*mPtr)(WrenGetLiteral<ClassMethodPtrArg<decltype(mPtr),I>>(vm, I+1)...);
+		WrenSet<R>(vm, ret);
+	}
+}
+
+template<auto mPtr>
+void WrenMethodCaller(WrenVM* vm)
+{
+	WrenMethodCaller<
+		ClassMethodPtrClass<decltype(mPtr)>,
+		ClassMethodPtrReturn<decltype(mPtr)>,
+		mPtr
+	>(vm, ClassMethodPtrArgsSeq<decltype(mPtr)>());
+}
+
 const char* TAKO_WREN_DEF =
 R"WREN(
 	foreign class Drawer {
 		foreign drawRect(x, y, w, h, c)
+		foreign clear()
 	}
 	foreign class Color {
 		foreign construct new(r, g, b, a)
@@ -45,6 +180,23 @@ void ErrorFn(WrenVM *vm, WrenErrorType type, const char *module, int line, const
 	}
 }
 
+bool WrenScriptContext::MethodKey::operator<(const WrenScriptContext::MethodKey& other) const
+{
+	if (module != other.module)
+	{
+		return module < other.module;
+	}
+	if (className != other.className)
+	{
+		return className < other.className;
+	}
+	if (isStatic != other.isStatic)
+	{
+		return isStatic;
+	}
+	return signature < other.signature;
+}
+
 WrenScriptContext::WrenScriptContext()
 {
 	WrenConfiguration config;
@@ -55,6 +207,21 @@ WrenScriptContext::WrenScriptContext()
 	config.bindForeignClassFn = WrenScriptContext::BindForeignClass;
 	m_vm = wrenNewVM(&config);
 	wrenSetUserData(m_vm, this);
+
+	m_foreignMap[{"tako", "Tako", true, "setup(_)"}] = WrenScriptContext::SetSetup;
+	m_foreignMap[{"tako", "Tako", true, "update(_)"}] = WrenScriptContext::SetUpdate;
+	m_foreignMap[{"tako", "Tako", true, "draw(_)"}] = WrenScriptContext::SetDraw;
+	m_foreignMap[{"tako", "Drawer", false, "drawRect(_,_,_,_,_)"}] = WrenScriptContext::DrawRect;
+	m_foreignMap[{"tako", "Drawer", false, "clear()"}] = WrenMethodCaller<&PixelArtDrawer::Clear>;
+	m_foreignMap[{"tako", "Color", false, "init new(_,_,_,_)"}] = [](WrenVM* vm){};
+	m_foreignMap[{"tako", "Color", false, "r"}] = WrenFieldGetter<&Color::r>;
+	m_foreignMap[{"tako", "Color", false, "g"}] = WrenFieldGetter<&Color::g>;
+	m_foreignMap[{"tako", "Color", false, "b"}] = WrenFieldGetter<&Color::b>;
+	m_foreignMap[{"tako", "Color", false, "a"}] = WrenFieldGetter<&Color::a>;
+	m_foreignMap[{"tako", "Color", false, "r=(_)"}] = WrenFieldSetter<&Color::r>;
+	m_foreignMap[{"tako", "Color", false, "g=(_)"}] = WrenFieldSetter<&Color::g>;
+	m_foreignMap[{"tako", "Color", false, "b=(_)"}] = WrenFieldSetter<&Color::b>;
+	m_foreignMap[{"tako", "Color", false, "a=(_)"}] = WrenFieldSetter<&Color::a>;
 
 	WrenInterpretResult result = wrenInterpret
 	(
@@ -117,7 +284,6 @@ void WrenScriptContext::Update(Input *input, float dt)
 }
 void WrenScriptContext::Draw(PixelArtDrawer *drawer)
 {
-	drawer->Clear();
 	if (m_drawHandle)
 	{
 		auto callHandle = wrenMakeCallHandle(m_vm, "call(_)");
@@ -129,181 +295,10 @@ void WrenScriptContext::Draw(PixelArtDrawer *drawer)
 	}
 }
 
-template<typename T>
-auto WrenGet(WrenVM *vm, int slot)
-{
-	if constexpr (std::is_same_v<bool, T>)
-	{
-		return wrenGetSlotBool(vm, slot);
-	}
-	else if constexpr (std::is_convertible_v<double, T>)
-	{
-		return static_cast<T>(wrenGetSlotDouble(vm, slot));
-	}
-	else if constexpr (std::is_class_v<T>)
-	{
-		return static_cast<T *>(wrenGetSlotForeign(vm, slot));
-	}
-	else
-	{
-		ASSERT(false);
-	}
-}
-
-template<typename T>
-void WrenSet(WrenVM *vm, int slot, T value)
-{
-	if constexpr (std::is_same_v<bool, T>)
-	{
-		wrenSetSlotBool(vm, slot, value);
-	}
-	else if constexpr (std::is_convertible_v<T, double>)
-	{
-		wrenSetSlotDouble(vm, slot, value);
-	}
-	/*
-	else if constexpr (std::is_class_v<T>)
-	{
-		return static_cast<T *>(wrenGetSlotForeign(vm, slot));
-	}
-	*/
-	else
-	{
-		ASSERT(false);
-	}
-}
-
-
-template<typename P> struct MemberFieldTraits;
-template<typename R, typename T>
-struct MemberFieldTraits<R (T::*)>
-{
-	typedef R ret;
-	typedef T type;
-};
-
-template<typename T> using ClassFieldPtrClass = typename MemberFieldTraits<T>::type;
-template<typename T> using ClassFieldPtrType = typename MemberFieldTraits<T>::ret;
-
-template<typename P> struct MemberPtrTraits;
-template<typename R, typename T, typename... Args>
-struct MemberPtrTraits<R (T::*)(Args...)>
-{
-	typedef R ret;
-	typedef T type;
-};
-
-template<typename T> using ClassMethodPtrClass = typename MemberPtrTraits<T>::type;
-template<typename T> using ClassMethodPtrType = typename MemberPtrTraits<T>::ret;
-
-template<auto fPtr>
-void WrenFieldGetter(WrenVM* vm)
-{
-	auto value = WrenGet<ClassFieldPtrClass<decltype(fPtr)>>(vm, 0);
-	WrenSet(vm, 0, value->*fPtr);
-}
-
-/*
-template<typename R, typename T, R T::*ptr>
-void WrenFieldGetter(WrenVM* vm)
-{
-	auto value = WrenGet<T>(vm, 0);
-	WrenSet(vm, 0, value->*ptr);
-}
- */
-
-template<auto fPtr>
-void WrenFieldSetter(WrenVM* vm)
-{
-	auto obj = WrenGet<ClassFieldPtrClass<decltype(fPtr)>>(vm, 0);
-	obj->*fPtr = WrenGet<ClassFieldPtrType<decltype(fPtr)>>(vm, 1);
-}
-
 WrenForeignMethodFn WrenScriptContext::BindForeignMethodFn(WrenVM* vm, const char* module, const char *className, bool isStatic, const char* signature)
 {
-	if (strcmp(module, "tako") == 0)
-	{
-		if (strcmp(className, "Tako") == 0)
-		{
-			if (isStatic)
-			{
-				if (strcmp(signature, "setup(_)") == 0)
-				{
-					return WrenScriptContext::SetSetup;
-				}
-				if (strcmp(signature, "update(_)") == 0)
-				{
-					return WrenScriptContext::SetUpdate;
-				}
-				if (strcmp(signature, "draw(_)") == 0)
-				{
-					return WrenScriptContext::SetDraw;
-				}
-			}
-		}
-		if (strcmp(className, "Drawer") == 0)
-		{
-			if (!isStatic)
-			{
-				if (strcmp(signature, "drawRect(_,_,_,_,_)") == 0)
-				{
-					return WrenScriptContext::DrawRect;
-				}
-			}
-		}
-		if (strcmp(className, "Color") == 0)
-		{
-			if (!isStatic)
-			{
-				if (strcmp(signature, "init new(_,_,_,_)") == 0)
-				{
-					return [](WrenVM* vm){};
-				}
-				if (strcmp(signature, "r") == 0)
-				{
-					return WrenFieldGetter<&Color::r>;
-				}
-				if (strcmp(signature, "g") == 0)
-				{
-					return WrenFieldGetter<&Color::g>;
-				}
-				if (strcmp(signature, "b") == 0)
-				{
-					return WrenFieldGetter<&Color::b>;
-				}
-				if (strcmp(signature, "a") == 0)
-				{
-					return WrenFieldGetter<&Color::a>;
-				}
-				if (strcmp(signature, "r=(_)") == 0)
-				{
-					return WrenFieldSetter<&Color::r>;
-				}
-				if (strcmp(signature, "g=(_)") == 0)
-				{
-					return WrenFieldSetter<&Color::g>;
-				}
-				if (strcmp(signature, "b=(_)") == 0)
-				{
-					return WrenFieldSetter<&Color::b>;
-				}
-				if (strcmp(signature, "a=(_)") == 0)
-				{
-					return WrenFieldSetter<&Color::a>;
-				}
-			}
-		}
-	}
-	return nullptr;
-}
-
-void WrenScriptContext::NewColor(WrenVM* vm)
-{
-	auto color = static_cast<Color*>(wrenGetSlotForeign(vm, 0));
-	color->r = WrenGet<U8>(vm, 1);
-	color->g = WrenGet<U8>(vm, 2);
-	color->b = WrenGet<U8>(vm, 3);
-	color->a = WrenGet<U8>(vm, 4);
+	auto context = static_cast<WrenScriptContext*>(wrenGetUserData(vm));
+	return context->m_foreignMap[{module, className, isStatic, signature}];
 }
 
 template<typename T, typename... Args>
