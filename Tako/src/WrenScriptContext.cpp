@@ -27,17 +27,14 @@ auto WrenGetLiteral(WrenVM* vm, int slot)
 {
 	if constexpr (std::is_same_v<bool, T>)
 	{
-		LOG("slot {} {}", slot, "bool");
 		return wrenGetSlotBool(vm, slot);
 	}
 	else if constexpr (std::is_convertible_v<double, T>)
 	{
-		LOG("slot {} {}", slot, "number");
 		return static_cast<T>(wrenGetSlotDouble(vm, slot));
 	}
 	else if constexpr (std::is_class_v<T>)
 	{
-		LOG("slot {} {}", slot, "class");
 		return *static_cast<T*>(wrenGetSlotForeign(vm, slot));
 	}
 	else
@@ -57,12 +54,6 @@ void WrenSet(WrenVM* vm, int slot, T value)
 	{
 		wrenSetSlotDouble(vm, slot, value);
 	}
-	/*
-	else if constexpr (std::is_class_v<T>)
-	{
-		return static_cast<T *>(wrenGetSlotForeign(vm, slot));
-	}
-	*/
 	else
 	{
 		ASSERT(false);
@@ -132,6 +123,31 @@ void WrenMethodCaller(WrenVM* vm)
 		ClassMethodPtrClass<decltype(mPtr)>,
 		ClassMethodPtrReturn<decltype(mPtr)>,
 		mPtr
+	>(vm, ClassMethodPtrArgsSeq<decltype(mPtr)>());
+}
+
+template<typename T, typename R, auto mPtr, std::size_t... I>
+void WrenMethodCallerPtr(WrenVM* vm, std::index_sequence<I...>)
+{
+	auto obj = *static_cast<T**>(wrenGetSlotForeign(vm, 0));;
+	if constexpr (std::is_void_v<R>)
+	{
+		(obj->*mPtr)(WrenGetLiteral<ClassMethodPtrArg<decltype(mPtr),I>>(vm, I+1)...);
+	}
+	else
+	{
+		auto ret = (obj->*mPtr)(WrenGetLiteral<ClassMethodPtrArg<decltype(mPtr),I>>(vm, I+1)...);
+		WrenSet<R>(vm, ret);
+	}
+}
+
+template<auto mPtr>
+void WrenMethodCallerPtr(WrenVM* vm)
+{
+	WrenMethodCallerPtr<
+			ClassMethodPtrClass<decltype(mPtr)>,
+			ClassMethodPtrReturn<decltype(mPtr)>,
+			mPtr
 	>(vm, ClassMethodPtrArgsSeq<decltype(mPtr)>());
 }
 
@@ -211,8 +227,8 @@ WrenScriptContext::WrenScriptContext()
 	m_foreignMap[{"tako", "Tako", true, "setup(_)"}] = WrenScriptContext::SetSetup;
 	m_foreignMap[{"tako", "Tako", true, "update(_)"}] = WrenScriptContext::SetUpdate;
 	m_foreignMap[{"tako", "Tako", true, "draw(_)"}] = WrenScriptContext::SetDraw;
-	m_foreignMap[{"tako", "Drawer", false, "drawRect(_,_,_,_,_)"}] = WrenScriptContext::DrawRect;
-	m_foreignMap[{"tako", "Drawer", false, "clear()"}] = WrenMethodCaller<&PixelArtDrawer::Clear>;
+	m_foreignMap[{"tako", "Drawer", false, "drawRect(_,_,_,_,_)"}] = WrenMethodCallerPtr<&PixelArtDrawer::DrawRectangle>;
+	m_foreignMap[{"tako", "Drawer", false, "clear()"}] = WrenMethodCallerPtr<&PixelArtDrawer::Clear>;
 	m_foreignMap[{"tako", "Color", false, "init new(_,_,_,_)"}] = [](WrenVM* vm){};
 	m_foreignMap[{"tako", "Color", false, "r"}] = WrenFieldGetter<&Color::r>;
 	m_foreignMap[{"tako", "Color", false, "g"}] = WrenFieldGetter<&Color::g>;
@@ -234,6 +250,10 @@ WrenScriptContext::WrenScriptContext()
 
 WrenScriptContext::~WrenScriptContext()
 {
+	if (m_setupHandle) wrenReleaseHandle(m_vm, m_setupHandle);
+	if (m_updateHandle) wrenReleaseHandle(m_vm, m_updateHandle);
+	if (m_drawHandle) wrenReleaseHandle(m_vm, m_drawHandle);
+	if (m_drawerHandle) wrenReleaseHandle(m_vm, m_drawerHandle);
 	wrenFreeVM(m_vm);
 }
 
@@ -351,18 +371,6 @@ void WrenScriptContext::SetDraw(WrenVM* vm)
 		wrenReleaseHandle(vm, context->m_drawHandle);
 	}
 	context->m_drawHandle = wrenGetSlotHandle(vm, 1);
-}
-
-void WrenScriptContext::DrawRect(WrenVM* vm)
-{
-	auto drawer = *static_cast<PixelArtDrawer**>(wrenGetSlotForeign(vm, 0));
-	double x = wrenGetSlotDouble(vm, 1);
-	double y = wrenGetSlotDouble(vm, 2);
-	double w = wrenGetSlotDouble(vm, 3);
-	double h = wrenGetSlotDouble(vm, 4);
-	auto c = static_cast<Color*>(wrenGetSlotForeign(vm, 5));
-
-	drawer->DrawRectangle(x, y, w, h, *c);
 }
 
 }

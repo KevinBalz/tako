@@ -34,13 +34,10 @@ namespace tako
 
 		std::map<MethodKey, WrenForeignMethodFn> m_foreignMap;
 
-
 		static WrenForeignMethodFn BindForeignMethodFn(WrenVM* vm, const char* module, const char* className, bool isStatic, const char* signature);
 		static WrenForeignClassMethods BindForeignClass(WrenVM* vm, const char* module, const char* className);
 		static void SetSetup(WrenVM* vm);
 		static void SetUpdate(WrenVM* vm);
 		static void SetDraw(WrenVM* vm);
-
-		static void DrawRect(WrenVM* vm);
 	};
 }
