@@ -27,6 +27,16 @@ namespace tako
 		case 0x4C: return Key::L;
 		case 0x58: return Key::X;
 		case 0x43: return Key::C;
+		case 0x30: return Key::N0;
+		case 0x31: return Key::N1;
+		case 0x32: return Key::N2;
+		case 0x33: return Key::N3;
+		case 0x34: return Key::N4;
+		case 0x35: return Key::N5;
+		case 0x36: return Key::N6;
+		case 0x37: return Key::N7;
+		case 0x38: return Key::N8;
+		case 0x39: return Key::N9;
 		case VK_UP: return Key::Up;
 		case VK_DOWN: return Key::Down;
 		case VK_LEFT: return Key::Left;

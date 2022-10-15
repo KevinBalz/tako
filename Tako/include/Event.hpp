@@ -90,6 +90,16 @@ namespace tako
 		Gamepad_L2,
 		Gamepad_R,
 		Gamepad_R2,
+		N1,
+		N2,
+		N3,
+		N4,
+		N5,
+		N6,
+		N7,
+		N8,
+		N9,
+		N0,
 		Unknown
 	};
 
