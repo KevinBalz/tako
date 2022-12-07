@@ -49,6 +49,11 @@ add_library(${TAKO_DLL}
 	"src/Reflection.cpp"
 	"include/Jam/LDtkImporter.hpp"
 	"include/Jam/TileMap.hpp"
+	"include/Scripting/Scripting.hpp"
+	"include/Scripting/AST.hpp"
+	"include/Scripting/Scanner.hpp"
+	"include/Scripting/Parser.hpp"
+	"include/Scripting/Interpreter.hpp"
 )
 
 function(set_feature define val)
@@ -294,5 +299,5 @@ endif(TAKO_EDITOR)
 
 target_link_libraries(${TAKO_DLL} PUBLIC fmt)
 
-add_executable(ECSBench "test/ECSBench.cpp")
-target_link_libraries(ECSBench PRIVATE tako)
+add_executable(LangBench "test/LangBench.cpp")
+target_link_libraries(LangBench PRIVATE tako)
