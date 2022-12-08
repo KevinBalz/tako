@@ -1,5 +1,6 @@
 #pragma once
 #include <variant>
+#include <optional>
 #include "Scanner.hpp"
 
 namespace tako::Scripting
@@ -25,9 +26,15 @@ namespace tako::Scripting
 
 	using Literal = std::variant<NilLiteral, NumberLiteral, BoolLiteral, StringLiteral>;
 
+	struct VariableAccess
+	{
+		std::string_view identifier;
+	};
+
 	struct UnaryExpression;
 	struct BinaryExpression;
-	using Expression = std::variant<Literal, UnaryExpression, BinaryExpression>;
+	struct Assign;
+	using Expression = std::variant<Literal, UnaryExpression, BinaryExpression, Assign, VariableAccess>;
 
 	struct UnaryExpression
 	{
@@ -47,6 +54,12 @@ namespace tako::Scripting
 		std::unique_ptr<Expression> right;
 	};
 
+	struct Assign
+	{
+		std::string_view name;
+		std::unique_ptr<Expression> value;
+	};
+
 	struct ExpressionStatement;
 	struct PrintStatement;
 	using Statement = std::variant<ExpressionStatement, PrintStatement>;
@@ -61,8 +74,16 @@ namespace tako::Scripting
 		Expression expr;
 	};
 
+	struct VariableDeclaration
+	{
+		std::string_view identifier;
+		std::optional<Expression> initializer;
+	};
+
+	using Declaration = std::variant<VariableDeclaration, Statement>;
+
 	struct Program
 	{
-		std::vector<Statement> statements;
+		std::vector<Declaration> declarations;
 	};
 }

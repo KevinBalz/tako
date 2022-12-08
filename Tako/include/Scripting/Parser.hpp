@@ -18,13 +18,36 @@ namespace tako::Scripting
 			Program prog;
 			while (!IsAtEnd())
 			{
-				prog.statements.emplace_back(ParseStatement());
+				prog.declarations.emplace_back(ParseDeclaration());
 			}
 
 			return prog;
 		}
 
 	private:
+		Declaration ParseDeclaration()
+		{
+			if (Match(TokenType::Var))
+			{
+				return ParseVariableDeclaration();
+			}
+
+			return ParseStatement();
+		}
+
+		Declaration ParseVariableDeclaration()
+		{
+			VariableDeclaration dec;
+			dec.identifier = Consume(TokenType::Identifier, "Expected variable name").lexeme;
+			if (Match(TokenType::Equal))
+			{
+				dec.initializer = ParseExpression();
+			}
+
+			Consume(TokenType::Semicolon, "Expected ';' after variable declaration");
+			return dec;
+		}
+
 		Statement ParseStatement()
 		{
 			if (Match(TokenType::Print)) return ParsePrintStatement();
@@ -50,7 +73,27 @@ namespace tako::Scripting
 
 		Expression ParseExpression()
 		{
-			return ParseEquality();
+			return ParseAssignment();
+		}
+
+		Expression ParseAssignment()
+		{
+			Expression expr = ParseEquality();
+
+			if (Match(TokenType::Equal))
+			{
+				auto value = std::make_unique<Expression>(ParseAssignment());
+
+				if (std::holds_alternative<VariableAccess>(expr))
+				{
+					Assign ass;
+					ass.name = std::get<VariableAccess>(expr).identifier;
+					ass.value = std::move(value);
+					return ass;
+				}
+			}
+
+			return expr;
 		}
 
 		Expression ParseEquality()
@@ -137,6 +180,13 @@ namespace tako::Scripting
 			{
 				auto lexeme = Previous().lexeme;
 				return StringLiteral{ lexeme.substr(1, lexeme.length() - 2) };
+			}
+
+			if (Match(TokenType::Identifier))
+			{
+				VariableAccess acc;
+				acc.identifier = Previous().lexeme;
+				return acc;
 			}
 
 			if (Match(TokenType::LeftParen))

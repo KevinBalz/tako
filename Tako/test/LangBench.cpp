@@ -9,7 +9,11 @@ const char* sourceCode = R"src(
 	# }
 	print 2 + 2 <= -((4 + 2) / 2 + 3 * 4);
 	print "Hello World!";
-	print (2 + 3) * -(3 - 4);
+	var myvar = (2 + 3) * -(3 - 4);
+	print myvar;
+	var heyo = myvar = myvar + 1;
+	print myvar;
+	print heyo;
 	print "Hello " + "Carla!";
 )src";
 
