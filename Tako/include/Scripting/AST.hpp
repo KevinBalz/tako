@@ -34,7 +34,8 @@ namespace tako::Scripting
 	struct UnaryExpression;
 	struct BinaryExpression;
 	struct Assign;
-	using Expression = std::variant<Literal, UnaryExpression, BinaryExpression, Assign, VariableAccess>;
+	struct Logical;
+	using Expression = std::variant<Literal, UnaryExpression, BinaryExpression, Assign, VariableAccess, Logical>;
 
 	struct UnaryExpression
 	{
@@ -60,9 +61,19 @@ namespace tako::Scripting
 		std::unique_ptr<Expression> value;
 	};
 
+	struct Logical
+	{
+		std::unique_ptr<Expression> left;
+		TokenType op;
+		std::unique_ptr<Expression> right;
+	};
+
 	struct ExpressionStatement;
 	struct PrintStatement;
-	using Statement = std::variant<ExpressionStatement, PrintStatement>;
+	struct BlockStatement;
+	struct IfStatement;
+	struct WhileStatement;
+	using Statement = std::variant<ExpressionStatement, PrintStatement, BlockStatement, IfStatement, WhileStatement>;
 
 	struct ExpressionStatement
 	{
@@ -80,7 +91,25 @@ namespace tako::Scripting
 		std::optional<Expression> initializer;
 	};
 
+	struct IfStatement
+	{
+		Expression condition;
+		std::unique_ptr<Statement> then;
+		std::optional<std::unique_ptr<Statement>> elseBranch;
+	};
+
+	struct WhileStatement
+	{
+		Expression condition;
+		std::unique_ptr<Statement> body;
+	};
+
 	using Declaration = std::variant<VariableDeclaration, Statement>;
+
+	struct BlockStatement
+	{
+		std::vector<Declaration> statements;
+	};
 
 	struct Program
 	{

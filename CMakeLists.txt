@@ -1,7 +1,7 @@
 cmake_minimum_required(VERSION 3.13)
 project("tako")
 
-set(CMAKE_CXX_STANDARD 17)
+set(CMAKE_CXX_STANDARD 20)
 list(APPEND CMAKE_MODULE_PATH ${PROJECT_SOURCE_DIR}/cmake)
 
 add_subdirectory("Utils")

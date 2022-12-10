@@ -13,8 +13,29 @@ const char* sourceCode = R"src(
 	print myvar;
 	var heyo = myvar = myvar + 1;
 	print myvar;
+	{
+		var heyo = myvar * 2;
+		print heyo;
+	}
 	print heyo;
 	print "Hello " + "Carla!";
+	if (2 + 2 == 4)
+	{
+		print "of course";
+	}
+	else
+	{
+		print "wait what";
+	}
+	print "hi" or 2;
+	print nil or "yes";
+	print nil and "yes";
+	var i = 0;
+	while (i < 10)
+	{
+		print i;
+		i = i + 1;
+	}
 )src";
 
 int main()

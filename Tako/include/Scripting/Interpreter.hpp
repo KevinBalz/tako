@@ -32,7 +32,7 @@ namespace tako::Scripting
 						value = Evaluate(dec.initializer.value());
 					}
 
-					environment.Define(std::string(dec.identifier), value);
+					environment->Define(std::string(dec.identifier), value);
 				}
 				else if constexpr (std::is_same_v<T, Statement>)
 				{
@@ -54,6 +54,36 @@ namespace tako::Scripting
 				{
 					ScriptValue val = Evaluate(st.expr);
 					val.Print();
+				}
+				else if constexpr (std::is_same_v<T, BlockStatement>)
+				{
+					Environment* previous = environment;
+					Environment newEnv(previous);
+					environment = &newEnv;
+
+					for (auto& s : st.statements)
+					{
+						Evaluate(s);
+					}
+					environment = previous;
+				}
+				else if constexpr (std::is_same_v<T, IfStatement>)
+				{
+					if (Evaluate(st.condition).IsTruthy())
+					{
+						Evaluate(*st.then);
+					}
+					else if (st.elseBranch)
+					{
+						Evaluate(*st.elseBranch.value());
+					}
+				}
+				else if constexpr (std::is_same_v<T, WhileStatement>)
+				{
+					while (Evaluate(st.condition).IsTruthy())
+					{
+						Evaluate(*st.body);
+					}
 				}
 			}, stmt);
 		}
@@ -111,12 +141,27 @@ namespace tako::Scripting
 				else if constexpr (std::is_same_v<T, Assign>)
 				{
 					ScriptValue value = Evaluate(*ex.value);
-					environment.Assign(std::string(ex.name), value);
+					environment->Assign(ex.name, value);
 					return value;
 				}
 				else if constexpr (std::is_same_v<T, VariableAccess>)
 				{
-					return environment.Get(std::string(ex.identifier));
+					return environment->Get(ex.identifier);
+				}
+				else if constexpr (std::is_same_v<T, Logical>)
+				{
+					ScriptValue left = Evaluate(*ex.left);
+
+					if (ex.op == TokenType::Or)
+					{
+						if (left.IsTruthy()) return left;
+					}
+					else
+					{
+						if (!left.IsTruthy()) return left;
+					}
+
+					return Evaluate(*ex.right);
 				}
 				ASSERT(false);
 			}, expr);
@@ -147,6 +192,8 @@ namespace tako::Scripting
 			}, literal);
 		}
 
-		Environment environment;
+		Environment globalEnvironment;
+		Environment* environment = &globalEnvironment;
+
 	};
 }

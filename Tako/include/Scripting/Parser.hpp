@@ -50,9 +50,39 @@ namespace tako::Scripting
 
 		Statement ParseStatement()
 		{
+			if (Match(TokenType::If)) return ParseIfStatement();
 			if (Match(TokenType::Print)) return ParsePrintStatement();
+			if (Match(TokenType::While)) return ParseWhileStatement();
+			if (Match(TokenType::LeftBrace)) return ParseBlock();
 
 			return ParseExpressionStatement();
+		}
+
+		Statement ParseIfStatement()
+		{
+			IfStatement stmt;
+			Consume(TokenType::LeftParen, "Expected '(' after 'if'.");
+			stmt.condition = ParseExpression();
+			Consume(TokenType::RightParen, "Expected ')' after 'if' condition.");
+
+			stmt.then = std::make_unique<Statement>(ParseStatement());
+			if (Match(TokenType::Else))
+			{
+				stmt.elseBranch = std::make_unique<Statement>(ParseStatement());
+			}
+
+			return stmt;
+		}
+
+		Statement ParseWhileStatement()
+		{
+			WhileStatement stmt;
+			Consume(TokenType::LeftParen, "Expected '(' after 'while'");
+			stmt.condition = ParseExpression();
+			Consume(TokenType::RightParen, "Expected ')' after 'while' condition");
+			stmt.body = std::make_unique<Statement>(ParseStatement());
+
+			return stmt;
 		}
 
 		Statement ParsePrintStatement()
@@ -61,6 +91,18 @@ namespace tako::Scripting
 			stmt.expr = ParseExpression();
 			Consume(TokenType::Semicolon, "Expected ';' after an expression");
 			return stmt;
+		}
+
+		Statement ParseBlock()
+		{
+			BlockStatement block;
+			while (!Check(TokenType::RightBrace) && !IsAtEnd())
+			{
+				block.statements.emplace_back(ParseDeclaration());
+			}
+
+			Consume(TokenType::RightBrace, "Expected '}' after block.");
+			return block;
 		}
 
 		Statement ParseExpressionStatement()
@@ -78,7 +120,7 @@ namespace tako::Scripting
 
 		Expression ParseAssignment()
 		{
-			Expression expr = ParseEquality();
+			Expression expr = ParseOr();
 
 			if (Match(TokenType::Equal))
 			{
@@ -91,6 +133,38 @@ namespace tako::Scripting
 					ass.value = std::move(value);
 					return ass;
 				}
+			}
+
+			return expr;
+		}
+
+		Expression ParseOr()
+		{
+			Expression expr = ParseAnd();
+
+			while (Match(TokenType::Or))
+			{
+				Logical log;
+				log.left = std::make_unique<Expression>(std::move(expr));
+				log.op = Previous().type;
+				log.right = std::make_unique<Expression>(ParseAnd());
+				expr = std::move(log);
+			}
+
+			return expr;
+		}
+
+		Expression ParseAnd()
+		{
+			Expression expr = ParseEquality();
+
+			while (Match(TokenType::And))
+			{
+				Logical log;
+				log.left = std::make_unique<Expression>(std::move(expr));
+				log.op = Previous().type;
+				log.right = std::make_unique<Expression>(ParseEquality());
+				expr = std::move(log);
 			}
 
 			return expr;
