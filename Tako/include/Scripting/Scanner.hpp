@@ -65,7 +65,7 @@ namespace tako::Scripting
 		{"if", TokenType::If },
 		{"nil", TokenType::Nil },
 		{"or", TokenType::Or },
-		{"print", TokenType::Print },
+		//{"print", TokenType::Print },
 		{"return", TokenType::Return },
 		{"var", TokenType::Var },
 		{"while", TokenType::While },

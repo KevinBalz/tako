@@ -1,4 +1,5 @@
 #pragma once
+#include <vector>
 
 namespace tako::Scripting
 {
@@ -7,8 +8,26 @@ namespace tako::Scripting
 		Number,
 		Bool,
 		String,
+		Function,
+		NativeFunction,
 		Nil
 	};
+
+	class Interpreter;
+	class ScriptValue;
+	class ScriptFunction
+	{
+	public:
+		ScriptFunction(const FunctionDeclaration* fun)
+		{
+			declaration = fun;
+		}
+
+		ScriptValue operator()(Interpreter* interpreter, std::vector<ScriptValue>& arguments);
+		const FunctionDeclaration* declaration;
+	};
+
+	using ScriptNativeCallback = ScriptValue(*)(Interpreter* interpreter, std::vector<ScriptValue>&);
 
 	class ScriptValue
 	{
@@ -18,6 +37,8 @@ namespace tako::Scripting
 			float number;
 			bool boolean;
 			std::string str;
+			ScriptFunction func;
+			ScriptNativeCallback nativeFunc;
 		};
 		ScriptType type;
 
@@ -45,13 +66,25 @@ namespace tako::Scripting
 			type = ScriptType::String;
 		}
 
+		ScriptValue(const FunctionDeclaration* fun)
+		{
+			func = fun;
+			type = ScriptType::Function;
+		}
+
+		ScriptValue(ScriptNativeCallback func)
+		{
+			nativeFunc = func;
+			type = ScriptType::NativeFunction;
+		}
+
 		~ScriptValue()
 		{
 			switch (type)
 			{
-			case ScriptType::String:
-				std::destroy_at(&str);
-				break;
+				case ScriptType::String:
+					std::destroy_at(&str);
+					break;
 			}
 		}
 
@@ -95,25 +128,40 @@ namespace tako::Scripting
 				case ScriptType::Number: return number == other.number;
 				case ScriptType::Bool: return boolean == other.boolean;
 				case ScriptType::String: return str == other.str;
+				case ScriptType::Function: return func.declaration == other.func.declaration;
+				case ScriptType::NativeFunction: return nativeFunc == other.nativeFunc;
 			}
+		}
+
+		ScriptValue operator()(Interpreter* interpreter, std::vector<ScriptValue>& arguments)
+		{
+			switch (type)
+			{
+				case ScriptType::Function:
+					return func(interpreter, arguments);
+				case ScriptType::NativeFunction:
+					return nativeFunc(interpreter, arguments);
+			}
+			// Error
+			return ScriptValue();
 		}
 
 		void Print()
 		{
 			switch (type)
 			{
-			case ScriptType::Nil:
-				LOG("nil");
-				break;
-			case ScriptType::Number:
-				LOG("{}", number);
-				break;
-			case ScriptType::Bool:
-				LOG("{}", boolean);
-				break;
-			case ScriptType::String:
-				LOG("{}", str);
-				break;
+				case ScriptType::Nil:
+					LOG("nil");
+					break;
+				case ScriptType::Number:
+					LOG("{}", number);
+					break;
+				case ScriptType::Bool:
+					LOG("{}", boolean);
+					break;
+				case ScriptType::String:
+					LOG("{}", str);
+					break;
 			}
 		}
 	private:
@@ -132,7 +180,13 @@ namespace tako::Scripting
 					boolean = other.boolean;
 					break;
 				case ScriptType::String:
-					new (&str) std::string(std::move(other.str));
+					new (&str) std::string(other.str);
+					break;
+				case ScriptType::Function:
+					func = other.func;
+					break;
+				case ScriptType::NativeFunction:
+					nativeFunc = other.nativeFunc;
 					break;
 			}
 		}

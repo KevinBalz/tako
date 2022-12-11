@@ -8,20 +8,43 @@
 
 namespace tako::Scripting
 {
+
+	ScriptValue PrintFunc(Interpreter* interpreter, std::vector<ScriptValue>& arguments);
+
 	class Interpreter
 	{
 	public:
-		void Interpret(const Program& prog)
+		Interpreter()
 		{
-			for (auto& dec : prog.declarations)
-			{
-				Evaluate(dec);
-			}
+			globalEnvironment.Define("print", &PrintFunc);
 		}
 
-		void Evaluate(const Declaration& declaration)
+		void Interpret(const Program& prog)
 		{
-			std::visit([this](auto& dec)
+			ExecuteBlock(prog.declarations, globalEnvironment);
+		}
+
+		std::optional<ScriptValue> ExecuteBlock(const std::vector<Declaration>& statements, Environment& env)
+		{
+			std::optional<ScriptValue> ret;
+			Environment* previous = environment;
+			environment = &env;
+
+			for (auto& s : statements)
+			{
+				if (auto r = Evaluate(s); r)
+				{
+					ret = std::move(r);
+					break;
+				}
+			}
+			environment = previous;
+			return ret;
+		}
+
+		std::optional<ScriptValue> Evaluate(const Declaration& declaration)
+		{
+			return std::visit([this](auto& dec) -> std::optional<ScriptValue>
 			{
 				using T = std::decay_t<decltype(dec)>;
 				if constexpr (std::is_same_v<T, VariableDeclaration>)
@@ -34,16 +57,21 @@ namespace tako::Scripting
 
 					environment->Define(std::string(dec.identifier), value);
 				}
+				else if constexpr (std::is_same_v<T, FunctionDeclaration>)
+				{
+					environment->Define(dec.name, ScriptValue(&dec));
+				}
 				else if constexpr (std::is_same_v<T, Statement>)
 				{
-					Evaluate(dec);
+					return Evaluate(dec);
 				}
+				return {};
 			}, declaration);
 		}
 
-		void Evaluate(const Statement& stmt)
+		std::optional<ScriptValue> Evaluate(const Statement& stmt) 
 		{
-			std::visit([this](auto& st)
+			return std::visit([this](auto& st) -> std::optional<ScriptValue>
 			{
 				using T = std::decay_t<decltype(st)>;
 				if constexpr (std::is_same_v<T, ExpressionStatement>)
@@ -57,34 +85,40 @@ namespace tako::Scripting
 				}
 				else if constexpr (std::is_same_v<T, BlockStatement>)
 				{
-					Environment* previous = environment;
-					Environment newEnv(previous);
-					environment = &newEnv;
-
-					for (auto& s : st.statements)
-					{
-						Evaluate(s);
-					}
-					environment = previous;
+					Environment newEnv(environment);
+					return ExecuteBlock(st.statements, newEnv);
 				}
 				else if constexpr (std::is_same_v<T, IfStatement>)
 				{
 					if (Evaluate(st.condition).IsTruthy())
 					{
-						Evaluate(*st.then);
+						return Evaluate(*st.then);
 					}
 					else if (st.elseBranch)
 					{
-						Evaluate(*st.elseBranch.value());
+						return Evaluate(*st.elseBranch.value());
 					}
 				}
 				else if constexpr (std::is_same_v<T, WhileStatement>)
 				{
 					while (Evaluate(st.condition).IsTruthy())
 					{
-						Evaluate(*st.body);
+						if (auto r = Evaluate(*st.body); r)
+						{
+							return r;
+						}
 					}
 				}
+				else if constexpr (std::is_same_v<T, ReturnStatement>)
+				{
+					if (st.value)
+					{
+						return Evaluate(st.value.value());
+					}
+
+					return ScriptValue();
+				}
+				return {};
 			}, stmt);
 		}
 
@@ -137,6 +171,18 @@ namespace tako::Scripting
 							return !(left == right);
 					}
 					return ScriptValue();
+				}
+				else if constexpr (std::is_same_v<T, Call>)
+				{
+					ScriptValue callee = Evaluate(*ex.callee);
+
+					std::vector<ScriptValue> arguments;
+					for (auto& e : ex.arguments)
+					{
+						arguments.emplace_back(Evaluate(e));
+					}
+
+					return callee(this, arguments);
 				}
 				else if constexpr (std::is_same_v<T, Assign>)
 				{
@@ -193,7 +239,31 @@ namespace tako::Scripting
 		}
 
 		Environment globalEnvironment;
-		Environment* environment = &globalEnvironment;
+		Environment* environment = nullptr;
 
 	};
+
+	ScriptValue PrintFunc(Interpreter* interpreter, std::vector<ScriptValue>& arguments)
+	{
+		arguments[0].Print();
+		return {};
+	}
+
+	
+	ScriptValue ScriptFunction::operator()(Interpreter* interpreter, std::vector<ScriptValue>& arguments)
+	{
+		Environment environment(interpreter->globalEnvironment);
+		for (int i = 0; i < declaration->params.size(); i++)
+		{
+			environment.Define(declaration->params[i], arguments[i]);
+		}
+
+		auto ret = interpreter->ExecuteBlock(declaration->body, environment);
+		if (ret)
+		{
+			return ret.value();
+		}
+
+		return ScriptValue();
+	}
 }

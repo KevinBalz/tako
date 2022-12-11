@@ -47,6 +47,11 @@ namespace tako::Scripting
 			values[std::string(name)] = value;
 		}
 
+		void Define(const char* name, const ScriptValue& value)
+		{
+			values[std::string(name)] = value;
+		}
+
 		void Assign(std::string_view name, const ScriptValue& value)
 		{
 			if (auto search = values.find(name); search != values.end())

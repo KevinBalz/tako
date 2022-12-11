@@ -27,12 +27,30 @@ namespace tako::Scripting
 	private:
 		Declaration ParseDeclaration()
 		{
-			if (Match(TokenType::Var))
-			{
-				return ParseVariableDeclaration();
-			}
+			if (Match(TokenType::Fun)) return ParseFunction();
+			if (Match(TokenType::Var)) return ParseVariableDeclaration();
 
 			return ParseStatement();
+		}
+
+		Declaration ParseFunction()
+		{
+			FunctionDeclaration dec;
+			dec.name = Consume(TokenType::Identifier, "Expect function name").lexeme;
+			Consume(TokenType::LeftParen, "Expect '(' after function name");
+			if (!Check(TokenType::RightParen))
+			{
+				do
+				{
+					dec.params.emplace_back(Consume(TokenType::Identifier, "Expect parameter name").lexeme);
+				}
+				while (Match(TokenType::Comma));
+			}
+			Consume(TokenType::RightParen, "Expect ')' after parameters");
+
+			Consume(TokenType::LeftBrace, "Expect '{' before function body");
+			ParseBlockStatements(dec.body);
+			return dec;
 		}
 
 		Declaration ParseVariableDeclaration()
@@ -52,6 +70,7 @@ namespace tako::Scripting
 		{
 			if (Match(TokenType::If)) return ParseIfStatement();
 			if (Match(TokenType::Print)) return ParsePrintStatement();
+			if (Match(TokenType::Return)) return ParseReturnStatement();
 			if (Match(TokenType::While)) return ParseWhileStatement();
 			if (Match(TokenType::LeftBrace)) return ParseBlock();
 
@@ -71,6 +90,18 @@ namespace tako::Scripting
 				stmt.elseBranch = std::make_unique<Statement>(ParseStatement());
 			}
 
+			return stmt;
+		}
+
+		Statement ParseReturnStatement()
+		{
+			ReturnStatement stmt;
+			if (!Check(TokenType::Semicolon))
+			{
+				stmt.value = ParseExpression();
+			}
+
+			Consume(TokenType::Semicolon, "Expect ';' after return value");
 			return stmt;
 		}
 
@@ -95,14 +126,19 @@ namespace tako::Scripting
 
 		Statement ParseBlock()
 		{
-			BlockStatement block;
+			BlockStatement dec;
+			ParseBlockStatements(dec.statements);
+			return dec;
+		}
+
+		void ParseBlockStatements(std::vector<Declaration>& statements)
+		{
 			while (!Check(TokenType::RightBrace) && !IsAtEnd())
 			{
-				block.statements.emplace_back(ParseDeclaration());
+				statements.emplace_back(ParseDeclaration());
 			}
 
 			Consume(TokenType::RightBrace, "Expected '}' after block.");
-			return block;
 		}
 
 		Statement ParseExpressionStatement()
@@ -235,7 +271,37 @@ namespace tako::Scripting
 				return UnaryExpression(op.type, std::move(right));
 			}
 
-			return ParsePrimary();
+			return ParseCall();
+		}
+
+		Expression ParseCall()
+		{
+			Expression expr = ParsePrimary();
+
+			while (true)
+			{
+				if (Match(TokenType::LeftParen))
+				{
+					Call call;
+					call.callee = std::make_unique<Expression>(std::move(expr));
+					if (!Check(TokenType::RightParen))
+					{
+						do
+						{
+							call.arguments.emplace_back(ParseExpression());
+						}
+						while (Match(TokenType::Comma));
+					}
+					Consume(TokenType::RightParen, "Expected ')' after arguments");
+					expr = std::move(call);
+				}
+				else
+				{
+					break;
+				}
+			}
+
+			return expr;
 		}
 
 		Expression ParsePrimary()
