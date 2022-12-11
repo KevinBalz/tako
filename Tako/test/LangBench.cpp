@@ -46,13 +46,29 @@ const char* sourceCode = R"src(
 
 	count(3);
 
-	var i = 0;
 	fun fib(n) {
 		if (n <= 1) return n;
 		return fib(n - 2) + fib(n - 1);
 	}
 
 	print(fib(15));
+
+	fun makeCounter() {
+		var i = 0;
+		fun count() {
+			i = i + 1;
+			print(i);
+		}
+
+		return count;
+	}
+
+	var counter = makeCounter();
+	counter();
+	counter();
+	counter();
+	print("multi print", 1, 2, 3, 42);
+	print(makeCounter(), print);
 )src";
 
 int main()

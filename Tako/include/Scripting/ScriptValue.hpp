@@ -1,5 +1,7 @@
 #pragma once
 #include <vector>
+#include <memory>
+#include <iostream>
 
 namespace tako::Scripting
 {
@@ -15,16 +17,21 @@ namespace tako::Scripting
 
 	class Interpreter;
 	class ScriptValue;
+	class Environment;
+	struct FunctionDeclaration;
+
 	class ScriptFunction
 	{
 	public:
-		ScriptFunction(const FunctionDeclaration* fun)
+		ScriptFunction(const FunctionDeclaration* fun, std::shared_ptr<Environment> closure)
 		{
 			declaration = fun;
+			this->closure = closure;
 		}
 
 		ScriptValue operator()(Interpreter* interpreter, std::vector<ScriptValue>& arguments);
 		const FunctionDeclaration* declaration;
+		std::shared_ptr<Environment> closure;
 	};
 
 	using ScriptNativeCallback = ScriptValue(*)(Interpreter* interpreter, std::vector<ScriptValue>&);
@@ -66,9 +73,9 @@ namespace tako::Scripting
 			type = ScriptType::String;
 		}
 
-		ScriptValue(const FunctionDeclaration* fun)
+		ScriptValue(const FunctionDeclaration* fun, std::shared_ptr<Environment> closure)
 		{
-			func = fun;
+			new (&func) ScriptFunction(fun, closure);
 			type = ScriptType::Function;
 		}
 
@@ -82,6 +89,9 @@ namespace tako::Scripting
 		{
 			switch (type)
 			{
+				case ScriptType::Function:
+					std::destroy_at(&func);
+					break;
 				case ScriptType::String:
 					std::destroy_at(&str);
 					break;
@@ -105,6 +115,9 @@ namespace tako::Scripting
 			{
 				case ScriptType::String:
 					str = other.str;
+					break;
+				case ScriptType::Function:
+					func = other.func;
 					break;
 				default:
 					CopyInit(other);
@@ -183,7 +196,7 @@ namespace tako::Scripting
 					new (&str) std::string(other.str);
 					break;
 				case ScriptType::Function:
-					func = other.func;
+					new (&func) ScriptFunction(other.func);
 					break;
 				case ScriptType::NativeFunction:
 					nativeFunc = other.nativeFunc;

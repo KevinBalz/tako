@@ -16,7 +16,8 @@ namespace tako::Scripting
 	public:
 		Interpreter()
 		{
-			globalEnvironment.Define("print", &PrintFunc);
+			globalEnvironment = std::make_shared<Environment>();
+			globalEnvironment->Define("print", &PrintFunc);
 		}
 
 		void Interpret(const Program& prog)
@@ -24,11 +25,11 @@ namespace tako::Scripting
 			ExecuteBlock(prog.declarations, globalEnvironment);
 		}
 
-		std::optional<ScriptValue> ExecuteBlock(const std::vector<Declaration>& statements, Environment& env)
+		std::optional<ScriptValue> ExecuteBlock(const std::vector<Declaration>& statements, std::shared_ptr<Environment> env)
 		{
 			std::optional<ScriptValue> ret;
-			Environment* previous = environment;
-			environment = &env;
+			auto previous = environment;
+			environment = env;
 
 			for (auto& s : statements)
 			{
@@ -59,7 +60,7 @@ namespace tako::Scripting
 				}
 				else if constexpr (std::is_same_v<T, FunctionDeclaration>)
 				{
-					environment->Define(dec.name, ScriptValue(&dec));
+					environment->Define(dec.name, ScriptValue(&dec, environment));
 				}
 				else if constexpr (std::is_same_v<T, Statement>)
 				{
@@ -85,7 +86,7 @@ namespace tako::Scripting
 				}
 				else if constexpr (std::is_same_v<T, BlockStatement>)
 				{
-					Environment newEnv(environment);
+					auto newEnv = std::make_shared<Environment>(environment);
 					return ExecuteBlock(st.statements, newEnv);
 				}
 				else if constexpr (std::is_same_v<T, IfStatement>)
@@ -238,24 +239,54 @@ namespace tako::Scripting
 			}, literal);
 		}
 
-		Environment globalEnvironment;
-		Environment* environment = nullptr;
+		std::shared_ptr<Environment> globalEnvironment = nullptr;
+		std::shared_ptr<Environment> environment = nullptr;
 
 	};
 
+	std::ostream& operator<<(std::ostream& os, const ScriptValue& val)
+	{
+		switch (val.type)
+		{
+			case ScriptType::Nil:
+				os << "nil";
+				break;
+			case ScriptType::Number:
+				os << val.number;
+				break;
+			case ScriptType::Bool:
+				os << val.boolean;
+				break;
+			case ScriptType::String:
+				os << val.str;
+				break;
+			case ScriptType::Function:
+				os << "<fn " << val.func.declaration->name << ">";
+				break;
+			case ScriptType::NativeFunction:
+				os << "<fn 0x" << val.nativeFunc << ">";
+				break;
+		}
+		return os;
+	}
+
 	ScriptValue PrintFunc(Interpreter* interpreter, std::vector<ScriptValue>& arguments)
 	{
-		arguments[0].Print();
+		for (auto& arg : arguments)
+		{
+			std::cout << arg << " ";
+		}
+		std::cout << "\n";
 		return {};
 	}
 
 	
 	ScriptValue ScriptFunction::operator()(Interpreter* interpreter, std::vector<ScriptValue>& arguments)
 	{
-		Environment environment(interpreter->globalEnvironment);
+		auto environment = std::make_shared<Environment>(closure);
 		for (int i = 0; i < declaration->params.size(); i++)
 		{
-			environment.Define(declaration->params[i], arguments[i]);
+			environment->Define(declaration->params[i], arguments[i]);
 		}
 
 		auto ret = interpreter->ExecuteBlock(declaration->body, environment);

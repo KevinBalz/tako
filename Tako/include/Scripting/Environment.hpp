@@ -32,7 +32,7 @@ namespace tako::Scripting
 	class Environment
 	{
 	public:
-		Environment(Environment* parent = nullptr)
+		Environment(std::shared_ptr<Environment> parent = nullptr)
 		{
 			m_parent = parent;
 		}
@@ -84,7 +84,7 @@ namespace tako::Scripting
 			return ScriptValue();
 		}
 	private:
-		Environment* m_parent;
+		std::shared_ptr<Environment> m_parent;
 		std::unordered_map<std::string, ScriptValue, string_hash, std::equal_to<>> values;
 	};
 }
