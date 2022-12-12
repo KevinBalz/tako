@@ -69,6 +69,11 @@ namespace tako::Scripting
 			// Error
 		}
 
+		void AssignAt(int distance, std::string_view name, const ScriptValue& value)
+		{
+			Ancestor(distance)->values.find(name)->second = value;
+		}
+
 		ScriptValue Get(std::string_view name)
 		{
 			if (auto search = values.find(name); search != values.end())
@@ -83,8 +88,26 @@ namespace tako::Scripting
 
 			return ScriptValue();
 		}
-	private:
+
+		ScriptValue GetAt(int distance, std::string_view name)
+		{
+			return Ancestor(distance)->values.find(name)->second;
+		}
+
+		Environment* Ancestor(int distance)
+		{
+			Environment* environment = this;
+			for (int i = 0; i < distance; i++)
+			{
+				environment = environment->m_parent.get();
+			}
+
+			return environment;
+		}
+
 		std::shared_ptr<Environment> m_parent;
+	private:
+		
 		std::unordered_map<std::string, ScriptValue, string_hash, std::equal_to<>> values;
 	};
 }

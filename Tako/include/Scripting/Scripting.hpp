@@ -1,6 +1,7 @@
 #pragma once
 #include "Parser.hpp"
 #include "Interpreter.hpp"
+#include "Resolver.hpp"
 #include "Utility.hpp"
 
 namespace tako::Scripting
@@ -35,6 +36,11 @@ namespace tako::Scripting
 		Parser parser(tokens);
 		auto prog = parser.Parse();
 		Interpreter interpreter;
+		{
+			Resolver resolver;
+			resolver.Resolve(prog.declarations);
+			std::swap(interpreter.locals, resolver.locals);
+		}
 		interpreter.Interpret(prog);
 		//LOG("val: {}", val);
 	}

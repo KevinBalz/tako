@@ -125,7 +125,8 @@ namespace tako::Scripting
 
 		ScriptValue Evaluate(const Expression& expr)
 		{
-			return std::visit([this](auto& ex) -> ScriptValue
+			auto exprPtr = &expr;
+			return std::visit([this, exprPtr](auto& ex) -> ScriptValue
 			{
 				using T = std::decay_t<decltype(ex)>;
 				if constexpr (std::is_same_v<T, Literal>)
@@ -188,12 +189,27 @@ namespace tako::Scripting
 				else if constexpr (std::is_same_v<T, Assign>)
 				{
 					ScriptValue value = Evaluate(*ex.value);
-					environment->Assign(ex.name, value);
+					if (auto search = locals.find(exprPtr); search != locals.end())
+					{
+						environment->AssignAt(search->second, ex.name, value);
+					}
+					else
+					{
+						globalEnvironment->Assign(ex.name, value);
+					}
+
 					return value;
 				}
 				else if constexpr (std::is_same_v<T, VariableAccess>)
 				{
-					return environment->Get(ex.identifier);
+					if (auto search = locals.find(exprPtr); search != locals.end())
+					{
+						return environment->GetAt(search->second, ex.identifier);
+					}
+					else
+					{
+						return globalEnvironment->Get(ex.identifier);
+					}
 				}
 				else if constexpr (std::is_same_v<T, Logical>)
 				{
@@ -239,6 +255,7 @@ namespace tako::Scripting
 			}, literal);
 		}
 
+		std::unordered_map<const Expression*, int> locals;
 		std::shared_ptr<Environment> globalEnvironment = nullptr;
 		std::shared_ptr<Environment> environment = nullptr;
 
