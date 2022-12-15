@@ -75,7 +75,6 @@ namespace tako::Scripting
 	{
 		TokenType type;
 		std::string_view lexeme;
-		// literal
 		int line;
 
 		Token(TokenType type, std::string_view lexeme, int line) :

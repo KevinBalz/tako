@@ -57,6 +57,8 @@ add_library(${TAKO_DLL}
 	"include/Scripting/Environment.hpp"
 	"include/Scripting/ScriptValue.hpp"
 	"include/Scripting/Resolver.hpp"
+	"include/Scripting/Chunk.hpp"
+	"include/Scripting/VM.hpp"
 )
 
 function(set_feature define val)

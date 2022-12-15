@@ -5,6 +5,13 @@
 
 namespace tako::Scripting
 {
+	using ScriptValue = double;
+
+	void PrintValue(ScriptValue value)
+	{
+		std::cout << value;
+	}
+	/*
 	enum class ScriptType
 	{
 		Number,
@@ -246,4 +253,5 @@ namespace tako::Scripting
 			return ScriptValue(a.number / b.number);
 		}
 	}
+	*/
 }
