@@ -27,10 +27,27 @@ namespace tako::Scripting
 	private:
 		Declaration ParseDeclaration()
 		{
+			if (Match(TokenType::Class)) return ParseClass();
 			if (Match(TokenType::Fun)) return ParseFunction();
 			if (Match(TokenType::Var)) return ParseVariableDeclaration();
 
 			return ParseStatement();
+		}
+
+		Declaration ParseClass()
+		{
+			ClassDeclaration dec;
+			dec.name = Consume(TokenType::Identifier, "Expect class name").lexeme;
+			Consume(TokenType::LeftBrace, "Expect '{' before class body");
+
+			while (!Check(TokenType::RightBrace) && !IsAtEnd())
+			{
+				dec.methods.emplace_back(ParseFunction());
+			}
+
+			Consume(TokenType::RightBrace, "Expect '}' before class body.");
+
+			return dec;
 		}
 
 		Declaration ParseFunction()
@@ -169,6 +186,15 @@ namespace tako::Scripting
 					ass.value = std::move(value);
 					return ass;
 				}
+				else if (std::holds_alternative<Get>(expr))
+				{
+					Get& get = std::get<Get>(expr);
+					Set set;
+					set.object = std::move(get.object);
+					set.name = get.name;
+					set.value = std::move(value);
+					return set;
+				}
 			}
 
 			return expr;
@@ -294,6 +320,13 @@ namespace tako::Scripting
 					}
 					Consume(TokenType::RightParen, "Expected ')' after arguments");
 					expr = std::move(call);
+				}
+				else if (Match(TokenType::Dot))
+				{
+					Get get;
+					get.object = std::make_unique<Expression>(std::move(expr));
+					get.name = Consume(TokenType::Identifier, "Expect property name after '.'.").lexeme;
+					expr = std::move(get);
 				}
 				else
 				{

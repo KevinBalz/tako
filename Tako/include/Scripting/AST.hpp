@@ -34,9 +34,11 @@ namespace tako::Scripting
 	struct UnaryExpression;
 	struct BinaryExpression;
 	struct Call;
+	struct Get;
 	struct Assign;
 	struct Logical;
-	using Expression = std::variant<Literal, UnaryExpression, BinaryExpression, Call, Assign, VariableAccess, Logical>;
+	struct Set;
+	using Expression = std::variant<Literal, UnaryExpression, BinaryExpression, Call, Get, Assign, VariableAccess, Logical, Set>;
 
 	struct UnaryExpression
 	{
@@ -62,6 +64,12 @@ namespace tako::Scripting
 		std::vector<Expression> arguments;
 	};
 
+	struct Get
+	{
+		std::unique_ptr<Expression> object;
+		std::string_view name;
+	};
+
 	struct Assign
 	{
 		std::string_view name;
@@ -73,6 +81,13 @@ namespace tako::Scripting
 		std::unique_ptr<Expression> left;
 		TokenType op;
 		std::unique_ptr<Expression> right;
+	};
+
+	struct Set
+	{
+		std::unique_ptr<Expression> object;
+		std::string_view name;
+		std::unique_ptr<Expression> value;
 	};
 
 	struct ReturnStatement
@@ -119,7 +134,14 @@ namespace tako::Scripting
 	};
 
 	struct FunctionDeclaration;
-	using Declaration = std::variant<VariableDeclaration, FunctionDeclaration, Statement>;
+
+	struct ClassDeclaration
+	{
+		std::string_view name;
+		std::vector<FunctionDeclaration> methods;
+	};
+
+	using Declaration = std::variant<VariableDeclaration, FunctionDeclaration, ClassDeclaration, Statement>;
 
 
 	struct FunctionDeclaration
