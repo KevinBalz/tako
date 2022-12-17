@@ -1,5 +1,7 @@
 #pragma once
 #include "Chunk.hpp"
+#include "Parser.hpp"
+#include "Compiler.hpp"
 
 //#define DEBUG_TRACE_EXECUTION
 
@@ -23,6 +25,19 @@ namespace tako::Scripting
 			ResetStack();
 		}
 
+		InterpretResult Interpret(std::string_view source)
+		{
+			Parser parser(Scanner().ScanTokens(source));
+			Chunk chunk;
+
+			Compiler comp;
+			comp.Compile(&chunk, parser.ParseExpression());
+
+			chunk.Disassemble("test");
+
+			return Interpret(&chunk);
+		}
+
 		InterpretResult Interpret(Chunk* chunk)
 		{
 			this->chunk = chunk;
@@ -38,8 +53,13 @@ namespace tako::Scripting
 #define BINARY_OP(op) \
 		do \
 		{ \
-			double b = Pop(); \
-			double a = Pop(); \
+			if (!Peek(0).IsNumber() || !Peek(1).IsNumber()) \
+			{ \
+				LOG_ERR("Operand must be a number."); \
+				return InterpretResult::RUNTIME_ERROR; \
+			} \
+			double b = Pop().as.number; \
+			double a = Pop().as.number; \
 			Push(a op b); \
 		} while (false)
 
@@ -53,15 +73,30 @@ namespace tako::Scripting
 				{
 					case OpCode::CONSTANT:
 					{
-						ScriptValue constant = READ_CONSTANT();
+						DynamicValue constant = READ_CONSTANT();
 						Push(constant);
 						break;
 					}
+					case OpCode::NIL: Push(DynamicValue()); break;
+					case OpCode::TRUE: Push(true); break;
+					case OpCode::FALSE: Push(false); break;
 					case OpCode::ADD: BINARY_OP(+); break;
 					case OpCode::SUBTRACT: BINARY_OP(-); break;
 					case OpCode::MULTIPLY: BINARY_OP(*); break;
 					case OpCode::DIVIDE: BINARY_OP(/); break;
-					case OpCode::NEGATE: Push(-Pop()); break;
+					case OpCode::NOT:
+						Push(!Pop().IsTruthy());
+						break;
+					case OpCode::NEGATE:
+					{
+						if (!Peek(0).IsNumber())
+						{
+							LOG_ERR("Operand must be a number.");
+							return InterpretResult::RUNTIME_ERROR;
+						}
+						Push(-Pop().as.number);
+						break;
+					}
 					case OpCode::RETURN:
 					{
 						PrintValue(Pop());
@@ -76,16 +111,21 @@ namespace tako::Scripting
 #undef BINARY_OP
 		}
 
-		void Push(ScriptValue value)
+		void Push(DynamicValue value)
 		{
 			*stackTop = value;
 			stackTop++;
 		}
 
-		ScriptValue Pop()
+		DynamicValue Pop()
 		{
 			stackTop--;
 			return *stackTop;
+		}
+
+		DynamicValue Peek(int distance)
+		{
+			return stackTop[-1 - distance];
 		}
 
 		void ResetStack()
@@ -95,7 +135,7 @@ namespace tako::Scripting
 
 		Chunk* chunk;
 		U8* ip;
-		ScriptValue stack[STACK_MAX];
-		ScriptValue* stackTop;
+		DynamicValue stack[STACK_MAX];
+		DynamicValue* stackTop;
 	};
 }

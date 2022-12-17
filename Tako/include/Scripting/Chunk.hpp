@@ -9,10 +9,14 @@ namespace tako::Scripting
 	enum class OpCode : U8
 	{
 		CONSTANT,
+		NIL,
+		TRUE,
+		FALSE,
 		ADD,
 		SUBTRACT,
 		MULTIPLY,
 		DIVIDE,
+		NOT,
 		NEGATE,
 		RETURN,
 	};
@@ -32,7 +36,7 @@ namespace tako::Scripting
 			Write((U8) code, line);
 		}
 
-		int AddConstant(ScriptValue value)
+		int AddConstant(DynamicValue value)
 		{
 			constants.push_back(value);
 			return constants.size() - 1;
@@ -66,6 +70,12 @@ namespace tako::Scripting
 			{
 				case OpCode::CONSTANT:
 					return ConstantInstruction("OP_CONSTANT", offset);
+				case OpCode::NIL:
+					return SimpleInstruction("OP_NIL", offset);
+				case OpCode::TRUE:
+					return SimpleInstruction("OP_TRUE", offset);
+				case OpCode::FALSE:
+					return SimpleInstruction("OP_FALSE", offset);
 				case OpCode::ADD:
 					return SimpleInstruction("OP_ADD", offset);
 				case OpCode::SUBTRACT:
@@ -74,6 +84,8 @@ namespace tako::Scripting
 					return SimpleInstruction("OP_MULTIPLY", offset);
 				case OpCode::DIVIDE:
 					return SimpleInstruction("OP_DIVIDE", offset);
+				case OpCode::NOT:
+					return SimpleInstruction("OP_NOT", offset);
 				case OpCode::NEGATE:
 					return SimpleInstruction("OP_NEGATE", offset);
 				case OpCode::RETURN:
@@ -101,6 +113,6 @@ namespace tako::Scripting
 
 		std::vector<U8> code;
 		std::vector<int> lines;
-		std::vector<ScriptValue> constants;
+		std::vector<DynamicValue> constants;
 	};
 }

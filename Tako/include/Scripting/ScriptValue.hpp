@@ -5,9 +5,79 @@
 
 namespace tako::Scripting
 {
-	using ScriptValue = double;
+	enum class DynamicType
+	{
+		Nil,
+		Bool,
+		Number
+	};
 
-	void PrintValue(ScriptValue value)
+	struct DynamicValue
+	{
+		DynamicType type;
+		union
+		{
+			bool boolean;
+			double number;
+		} as;
+
+		DynamicValue()
+		{
+			type = DynamicType::Nil;
+			as.boolean = 0;
+		}
+
+		DynamicValue(bool b)
+		{
+			type = DynamicType::Bool;
+			as.boolean = b;
+		}
+
+		DynamicValue(double d)
+		{
+			type = DynamicType::Number;
+			as.number = d;
+		}
+
+		bool IsTruthy()
+		{
+			return !IsNil() && (!IsBool() || as.boolean);
+		}
+
+		bool IsNil()
+		{
+			return type == DynamicType::Nil;
+		}
+
+		bool IsBool()
+		{
+			return type == DynamicType::Bool;
+		}
+
+		bool IsNumber()
+		{
+			return type == DynamicType::Number;
+		}
+	};
+
+	std::ostream& operator<<(std::ostream& os, const DynamicValue& val)
+	{
+		switch (val.type)
+		{
+			case DynamicType::Nil:
+				os << "nil";
+				break;
+			case DynamicType::Number:
+				os << val.as.number;
+				break;
+			case DynamicType::Bool:
+				os << (val.as.boolean ? "true" : "false");
+				break;
+			}
+		return os;
+	}
+
+	void PrintValue(DynamicValue value)
 	{
 		std::cout << value;
 	}

@@ -24,11 +24,11 @@ namespace tako::Scripting
 			return prog;
 		}
 
-	private:
+	//private:
 		Declaration ParseDeclaration()
 		{
 			if (Match(TokenType::Class)) return ParseClass();
-			if (Match(TokenType::Fun)) return ParseFunction();
+			//if (Match(TokenType::Fun)) return ParseFunction();
 			if (Match(TokenType::Var)) return ParseVariableDeclaration();
 
 			return ParseStatement();
@@ -42,7 +42,7 @@ namespace tako::Scripting
 
 			while (!Check(TokenType::RightBrace) && !IsAtEnd())
 			{
-				dec.methods.emplace_back(ParseFunction());
+				//dec.methods.emplace_back(ParseFunction());
 			}
 
 			Consume(TokenType::RightBrace, "Expect '}' before class body.");
@@ -50,6 +50,7 @@ namespace tako::Scripting
 			return dec;
 		}
 
+		/*
 		Declaration ParseFunction()
 		{
 			FunctionDeclaration dec;
@@ -69,6 +70,7 @@ namespace tako::Scripting
 			ParseBlockStatements(dec.body);
 			return dec;
 		}
+		*/
 
 		Declaration ParseVariableDeclaration()
 		{
