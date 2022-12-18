@@ -1,8 +1,16 @@
 #include "Scripting/Scripting.hpp"
 
 const char* sourceCode = R"src(
-	#-((-2 + 4) * 3 - 12 * 12)
-	!true
+	42; # meaning of life
+	print "Start!";
+	print -((-2 + 4) * 3 - 12 * 12);
+	print !true;
+	print !(5 - 4 > 3 * 2 == !nil);
+	print "Hello World" == "Hello World";
+	var meaning = 42;
+	print meaning;
+	meaning = "there is no meaning";
+	print meaning;
 )src";
 
 int main()

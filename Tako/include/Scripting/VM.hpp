@@ -23,6 +23,7 @@ namespace tako::Scripting
 		void Init()
 		{
 			ResetStack();
+			objects = nullptr;
 		}
 
 		InterpretResult Interpret(std::string_view source)
@@ -31,7 +32,7 @@ namespace tako::Scripting
 			Chunk chunk;
 
 			Compiler comp;
-			comp.Compile(&chunk, parser.ParseExpression());
+			comp.Compile(&chunk, parser.Parse());
 
 			chunk.Disassemble("test");
 
@@ -50,6 +51,7 @@ namespace tako::Scripting
 #define READ_BYTE() (*ip++)
 #define READ_OPCODE() ((OpCode) *ip++)
 #define READ_CONSTANT() (chunk->constants[READ_BYTE()])
+#define READ_STRING() static_cast<ObjString*>(READ_CONSTANT().as.obj)
 #define BINARY_OP(op) \
 		do \
 		{ \
@@ -69,7 +71,7 @@ namespace tako::Scripting
 				// Trace stack
 				chunk->DisassembleInstruction((int)(ip - &chunk->code[0]));
 #endif
-				switch (auto intruction = READ_OPCODE())
+				switch (READ_OPCODE())
 				{
 					case OpCode::CONSTANT:
 					{
@@ -80,6 +82,52 @@ namespace tako::Scripting
 					case OpCode::NIL: Push(DynamicValue()); break;
 					case OpCode::TRUE: Push(true); break;
 					case OpCode::FALSE: Push(false); break;
+					case OpCode::POP: Pop(); break;
+					case OpCode::GET_GLOBAL:
+					{
+						ObjString* name = READ_STRING();
+						if (auto search = globals.find(std::string(name->chars)); search != globals.end())
+						{
+							Push(search->second);
+						}
+						else
+						{
+							LOG_ERR("Undefined variable {}", name->chars);
+							return InterpretResult::RUNTIME_ERROR;
+						}
+						break;
+					}
+					case OpCode::DEFINE_GLOBAL:
+					{
+						ObjString* name = READ_STRING();
+						globals[std::string(name->chars)] = Peek(0);
+						Pop();
+						break;
+					}
+					case OpCode::SET_GLOBAL:
+					{
+						ObjString* name = READ_STRING();
+						if (auto search = globals.find(std::string(name->chars)); search != globals.end())
+						{
+							search->second = Peek(0); // Don't pop because assignment is an expression
+						}
+						else
+						{
+							// Variable not set
+							LOG_ERR("Undefined variable {}", name->chars);
+							return InterpretResult::RUNTIME_ERROR;
+						}
+						break;
+					}
+					case OpCode::EQUAL:
+					{
+						DynamicValue b = Pop();
+						DynamicValue a = Pop();
+						Push(a == b);
+						break;
+					}
+					case OpCode::GREATER: BINARY_OP(>); break;
+					case OpCode::LESS: BINARY_OP(<); break;
 					case OpCode::ADD: BINARY_OP(+); break;
 					case OpCode::SUBTRACT: BINARY_OP(-); break;
 					case OpCode::MULTIPLY: BINARY_OP(*); break;
@@ -97,17 +145,23 @@ namespace tako::Scripting
 						Push(-Pop().as.number);
 						break;
 					}
-					case OpCode::RETURN:
+					case OpCode::PRINT:
 					{
 						PrintValue(Pop());
 						std::cout << "\n";
+						break;
+					}
+					case OpCode::RETURN:
+					{
 						return InterpretResult::OK;
 					}
+					default: ASSERT(false);
 				}
 			}
 #undef READ_BYTE
 #undef READ_OPCODE
 #undef READ_CONSTANT
+#undef READ_STRING
 #undef BINARY_OP
 		}
 
@@ -137,5 +191,7 @@ namespace tako::Scripting
 		U8* ip;
 		DynamicValue stack[STACK_MAX];
 		DynamicValue* stackTop;
+		Obj* objects;
+		std::unordered_map<std::string, DynamicValue> globals;
 	};
 }

@@ -12,12 +12,20 @@ namespace tako::Scripting
 		NIL,
 		TRUE,
 		FALSE,
+		POP,
+		GET_GLOBAL,
+		DEFINE_GLOBAL,
+		SET_GLOBAL,
+		EQUAL,
+		GREATER,
+		LESS,
 		ADD,
 		SUBTRACT,
 		MULTIPLY,
 		DIVIDE,
 		NOT,
 		NEGATE,
+		PRINT,
 		RETURN,
 	};
 
@@ -76,6 +84,20 @@ namespace tako::Scripting
 					return SimpleInstruction("OP_TRUE", offset);
 				case OpCode::FALSE:
 					return SimpleInstruction("OP_FALSE", offset);
+				case OpCode::POP:
+					return SimpleInstruction("OP_POP", offset);
+				case OpCode::GET_GLOBAL:
+					return ConstantInstruction("OP_GET_GLOBAL", offset);
+				case OpCode::DEFINE_GLOBAL:
+					return ConstantInstruction("OP_DEFINE_GLOBAL", offset);
+				case OpCode::SET_GLOBAL:
+					return ConstantInstruction("OP_SET_GLOBAL", offset);
+				case OpCode::EQUAL:
+					return SimpleInstruction("OP_EQUAL", offset);
+				case OpCode::GREATER:
+					return SimpleInstruction("OP_GREATER", offset);
+				case OpCode::LESS:
+					return SimpleInstruction("OP_LESS", offset);
 				case OpCode::ADD:
 					return SimpleInstruction("OP_ADD", offset);
 				case OpCode::SUBTRACT:
@@ -88,6 +110,8 @@ namespace tako::Scripting
 					return SimpleInstruction("OP_NOT", offset);
 				case OpCode::NEGATE:
 					return SimpleInstruction("OP_NEGATE", offset);
+				case OpCode::PRINT:
+					return SimpleInstruction("OP_PRINT", offset);
 				case OpCode::RETURN:
 					return SimpleInstruction("OP_RETURN", offset);
 				default:

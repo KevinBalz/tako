@@ -60,6 +60,7 @@ add_library(${TAKO_DLL}
 	"include/Scripting/Chunk.hpp"
 	"include/Scripting/VM.hpp"
 	"include/Scripting/Compiler.hpp"
+	"include/Scripting/Object.hpp"
 )
 
 function(set_feature define val)
