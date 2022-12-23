@@ -29,10 +29,13 @@ namespace tako::Scripting
 		InterpretResult Interpret(std::string_view source)
 		{
 			Parser parser(Scanner().ScanTokens(source));
+			auto ast = parser.Parse();
+			Resolver resolver;
+			resolver.Resolve(ast);
 			Chunk chunk;
 
 			Compiler comp;
-			comp.Compile(&chunk, parser.Parse());
+			comp.Compile(&chunk, &resolver, ast);
 
 			chunk.Disassemble("test");
 
@@ -83,6 +86,18 @@ namespace tako::Scripting
 					case OpCode::TRUE: Push(true); break;
 					case OpCode::FALSE: Push(false); break;
 					case OpCode::POP: Pop(); break;
+					case OpCode::GET_LOCAL:
+					{
+						U8 slot = READ_BYTE();
+						Push(stack[slot]);
+						break;
+					}
+					case OpCode::SET_LOCAL:
+					{
+						U8 slot = READ_BYTE();
+						stack[slot] = Peek(0);
+						break;
+					}
 					case OpCode::GET_GLOBAL:
 					{
 						ObjString* name = READ_STRING();
@@ -148,7 +163,7 @@ namespace tako::Scripting
 					case OpCode::PRINT:
 					{
 						PrintValue(Pop());
-						std::cout << "\n";
+						std::cout << std::endl;
 						break;
 					}
 					case OpCode::RETURN:
@@ -184,7 +199,7 @@ namespace tako::Scripting
 
 		void ResetStack()
 		{
-			stackTop = stack;
+			stackTop = &stack[0];
 		}
 
 		Chunk* chunk;

@@ -13,6 +13,8 @@ namespace tako::Scripting
 		TRUE,
 		FALSE,
 		POP,
+		GET_LOCAL,
+		SET_LOCAL,
 		GET_GLOBAL,
 		DEFINE_GLOBAL,
 		SET_GLOBAL,
@@ -86,6 +88,10 @@ namespace tako::Scripting
 					return SimpleInstruction("OP_FALSE", offset);
 				case OpCode::POP:
 					return SimpleInstruction("OP_POP", offset);
+				case OpCode::GET_LOCAL:
+					return ByteInstruction("OP_GET_LOCAL", offset);
+				case OpCode::SET_LOCAL:
+					return ByteInstruction("OP_SET_LOCAL", offset);
 				case OpCode::GET_GLOBAL:
 					return ConstantInstruction("OP_GET_GLOBAL", offset);
 				case OpCode::DEFINE_GLOBAL:
@@ -126,10 +132,17 @@ namespace tako::Scripting
 			return offset + 1;
 		}
 
+		int ByteInstruction(std::string_view name, int offset)
+		{
+			U8 slot = code[offset + 1];
+			std::cout << name << " " << (int) slot << "\n";
+			return offset + 2;
+		}
+
 		int ConstantInstruction(std::string_view name, int offset)
 		{
 			U8 constant = code[offset + 1];
-			std::cout << name << " " << constant; //%4d
+			std::cout << name << " " << (int) constant << " "; //%4d
 			PrintValue(constants[constant]);
 			std::cout << "\n";
 			return offset + 2;

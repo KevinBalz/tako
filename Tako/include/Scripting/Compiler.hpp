@@ -1,6 +1,7 @@
 #pragma once
 #include "AST.hpp"
 #include "Chunk.hpp"
+#include "Resolver.hpp"
 
 namespace tako::Scripting
 {
@@ -8,9 +9,10 @@ namespace tako::Scripting
 	{
 	public:
 
-		void Compile(Chunk* chunk, const Program& ast)
+		void Compile(Chunk* chunk, Resolver* resolver, const Program& ast)
 		{
 			compilingChunk = chunk;
+			this->resolver = resolver;
 			for (auto& dec : ast.declarations)
 			{
 				Compile(dec);
@@ -25,7 +27,6 @@ namespace tako::Scripting
 				using T = std::decay_t<decltype(dec)>;
 				if constexpr (std::is_same_v<T, VariableDeclaration>)
 				{
-					auto global = IdentifierConstant(dec.identifier);
 					if (dec.initializer)
 					{
 						Compile(dec.initializer.value());
@@ -35,7 +36,11 @@ namespace tako::Scripting
 						Emit(OpCode::NIL);
 					}
 
-					DefineVariable(global);
+					if (resolver->globalDeclarations[&dec])
+					{
+						auto global = IdentifierConstant(dec.identifier);
+						DefineVariable(global);
+					}
 				}
 				else if constexpr (std::is_same_v<T, FunctionDeclaration>)
 				{
@@ -68,6 +73,15 @@ namespace tako::Scripting
 				}
 				else if constexpr (std::is_same_v<T, BlockStatement>)
 				{
+					for (auto& statement : stmt.statements)
+					{
+						Compile(statement);
+					}
+					int popCount = resolver->popCounts[&stmt];
+					for (int i = 0; i < popCount; i++)
+					{
+						Emit(OpCode::POP);
+					}
 				}
 				else if constexpr (std::is_same_v<T, IfStatement>)
 				{
@@ -87,7 +101,7 @@ namespace tako::Scripting
 
 		void Compile(const Expression& expression)
 		{
-			std::visit([this](auto& expr)
+			std::visit([this, &expression](auto& expr)
 			{
 				using T = std::decay_t<decltype(expr)>;
 				if constexpr (std::is_same_v<T, Literal>)
@@ -128,14 +142,32 @@ namespace tako::Scripting
 				}
 				else if constexpr (std::is_same_v<T, Assign>)
 				{
-					auto arg = IdentifierConstant(expr.name);
 					Compile(*expr.value);
-					Emit(OpCode::SET_GLOBAL, arg);
+
+					int stackPos = resolver->stackPositions[&expression];
+					if (stackPos < 0)
+					{
+						auto arg = IdentifierConstant(expr.name);
+						Emit(OpCode::SET_GLOBAL, arg);
+					}
+					else
+					{
+						Emit(OpCode::SET_LOCAL, stackPos);
+					}
 				}
 				else if constexpr (std::is_same_v<T, VariableAccess>)
 				{
-					auto arg = IdentifierConstant(expr.identifier);
-					Emit(OpCode::GET_GLOBAL, arg);
+					int stackPos = resolver->stackPositions[&expression];
+					if (stackPos < 0)
+					{
+						auto arg = IdentifierConstant(expr.identifier);
+						Emit(OpCode::GET_GLOBAL, arg);
+					}
+					else
+					{
+						Emit(OpCode::GET_LOCAL, stackPos);
+					}
+
 				}
 				else if constexpr (std::is_same_v<T, Logical>)
 				{
@@ -211,6 +243,7 @@ namespace tako::Scripting
 
 		void DefineVariable(U8 global)
 		{
+			// if scope > 0 return;
 			Emit(OpCode::DEFINE_GLOBAL, global);
 		}
 
@@ -222,5 +255,6 @@ namespace tako::Scripting
 		}
 
 		Chunk* compilingChunk;
+		Resolver* resolver;
 	};
 }

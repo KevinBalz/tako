@@ -6,9 +6,23 @@
 
 namespace tako::Scripting
 {
+	struct Local
+	{
+		std::string_view name;
+		int depth;
+	};
+
 	class Resolver
 	{
 	public:
+		void Resolve(const Program& ast)
+		{
+			for (auto& dec : ast.declarations)
+			{
+				Resolve(dec);
+			}
+		}
+
 		void Resolve(const Declaration& declaration)
 		{
 			std::visit([this](auto& dec)
@@ -16,17 +30,42 @@ namespace tako::Scripting
 				using T = std::decay_t<decltype(dec)>;
 				if constexpr (std::is_same_v<T, VariableDeclaration>)
 				{
-					Declare(dec.identifier);
+					if (scopeDepth > 0)
+					{
+						auto name = dec.identifier;
+						for (int i = locals.size() - 1; i>= 0; i--)
+						{
+							auto& local = locals[i];
+							if (local.depth != -1 && local.depth < scopeDepth)
+							{
+								break;
+							}
+
+							if (name == local.name)
+							{
+								LOG_ERR("Already a variable named '{}' in the same scope", name)
+							}
+						}
+						AddLocal(dec.identifier);
+						globalDeclarations[&dec] = false;
+					}
+					else
+					{
+						globalDeclarations[&dec] = true;
+					}
 					if (dec.initializer)
 					{
 						Resolve(dec.initializer.value());
 					}
-					Define(dec.identifier);
+					if (scopeDepth > 0)
+					{
+						locals.back().depth = scopeDepth;
+					}
 				}
 				else if constexpr (std::is_same_v<T, FunctionDeclaration>)
 				{
-					Declare(dec.name);
-					Define(dec.name);
+					//Declare(dec.name);
+					//Define(dec.name);
 
 					ResolveFunction(dec);
 				}
@@ -54,7 +93,7 @@ namespace tako::Scripting
 				{
 					BeginScope();
 					Resolve(stmt.statements);
-					EndScope();
+					popCounts[&stmt] = EndScope();
 				}
 				else if constexpr (std::is_same_v<T, IfStatement>)
 				{
@@ -139,8 +178,8 @@ namespace tako::Scripting
 			BeginScope();
 			for (auto param : function.params)
 			{
-				Declare(param);
-				Define(param);
+				//Declare(param);
+				//Define(param);
 			}
 			Resolve(function.body);
 			EndScope();
@@ -148,45 +187,53 @@ namespace tako::Scripting
 
 		void BeginScope()
 		{
-			scopes.push_back({});
+			scopeDepth++;
 		}
 
-		void EndScope()
+		int EndScope()
 		{
-			scopes.pop_back();
-		}
+			scopeDepth--;
 
-		void Declare(std::string_view name)
-		{
-			if (scopes.empty()) return;
-
-			auto& scope = scopes.back();
-			scope[std::string(name)] = false;
-		}
-
-		void Define(std::string_view name)
-		{
-			if (scopes.empty()) return;
-
-			auto& scope = scopes.back();
-			scope[std::string(name)] = true;
-		}
-
-		void ResolveLocal(const Expression* expr, std::string_view name)
-		{
-			for (int i = scopes.size() - 1; i >= 0; i--)
+			int popCount = 0;
+			while (!locals.empty() && locals.back().depth > scopeDepth)
 			{
-				auto& scope = scopes[i];
-				if (auto search = scope.find(std::string(name)); search != scope.end())
+				popCount++;
+				locals.pop_back();
+			}
+
+			return popCount;
+		}
+
+
+		void AddLocal(std::string_view name)
+		{
+			locals.push_back({name, -1});
+		}
+
+		void ResolveLocal(const Expression* expression, std::string_view name)
+		{
+			for (int i = locals.size() - 1; i >= 0; i--)
+			{
+				auto& local = locals[i];
+				if (local.name == name)
 				{
-					// Resolve(expr, scopes.size() - 1 - i);
-					locals[expr] = scopes.size() - 1 - i;
+					if (local.depth == -1)
+					{
+						LOG_ERR("Can't read local variable in its own initializer.");
+					}
+					stackPositions[expression] = i;
 					return;
 				}
 			}
+
+			stackPositions[expression] = -1;
 		}
 
-		std::unordered_map<const Expression*, int> locals;
-		std::vector<std::unordered_map<std::string, bool>> scopes;
+		int scopeDepth = 0;
+		std::vector<Local> locals;
+		std::unordered_map<const VariableDeclaration*, bool> globalDeclarations;
+		std::unordered_map<const BlockStatement*, int> popCounts;
+		std::unordered_map<const Expression*, int> stackPositions;
+		//std::vector<std::unordered_map<std::string, bool>> scopes;
 	};
 }
