@@ -28,8 +28,14 @@ namespace tako::Scripting
 		NOT,
 		NEGATE,
 		PRINT,
+		JUMP,
+		JUMP_IF_FALSE,
+		JUMP_IF_TRUE,
+		LOOP,
 		RETURN,
 	};
+
+	struct DynamicValue;
 
 	class Chunk
 	{
@@ -46,7 +52,7 @@ namespace tako::Scripting
 			Write((U8) code, line);
 		}
 
-		int AddConstant(DynamicValue value)
+		int AddConstant(const DynamicValue& value)
 		{
 			constants.push_back(value);
 			return constants.size() - 1;
@@ -118,6 +124,14 @@ namespace tako::Scripting
 					return SimpleInstruction("OP_NEGATE", offset);
 				case OpCode::PRINT:
 					return SimpleInstruction("OP_PRINT", offset);
+				case OpCode::JUMP:
+					return JumpInstruction("OP_JUMP", 1, offset);
+				case OpCode::JUMP_IF_FALSE:
+					return JumpInstruction("OP_JUMP_IF_FALSE", 1, offset);
+				case OpCode::JUMP_IF_TRUE:
+					return JumpInstruction("OP_JUMP_IF_TRUE", 1, offset);
+				case OpCode::LOOP:
+					return JumpInstruction("OP_LOOP", -1, offset);
 				case OpCode::RETURN:
 					return SimpleInstruction("OP_RETURN", offset);
 				default:
@@ -143,9 +157,18 @@ namespace tako::Scripting
 		{
 			U8 constant = code[offset + 1];
 			std::cout << name << " " << (int) constant << " "; //%4d
-			PrintValue(constants[constant]);
+			PrintValue(constants[constant], true);
 			std::cout << "\n";
 			return offset + 2;
+		}
+
+		int JumpInstruction(std::string_view name, int sign, int offset)
+		{
+			U16 jump = (U16)(code[offset + 1] << 8);
+			jump |= code[offset + 2];
+			std::cout << name << " " << offset << " -> " << offset + 3 + sign * jump;
+			std::cout << "\n";
+			return offset + 3;
 		}
 
 		std::vector<U8> code;

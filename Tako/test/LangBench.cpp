@@ -7,6 +7,16 @@ const char* sourceCode = R"src(
 	#print !true;
 	#print !(5 - 4 > 3 * 2 == !nil);
 	#print "Hello World" == "Hello World";
+	if (2 > 42)
+	{
+		print "its true";
+	}
+	else
+	{
+		print "its false";
+	}
+	print nil and 33;
+	print 33 or 42;
 	var meaning = 42;
 	print meaning;
 	meaning = "there is no meaning";
@@ -17,12 +27,19 @@ const char* sourceCode = R"src(
 		{
 			var meaning = meaning + 1;
 			print meaning;
-			meaning = 14;
+			meaning = meaning + 1;
 			print meaning;
 		}
 		print meaning;
 	}
 	print meaning;
+
+	var i = 0;
+	while (i < 42)
+	{
+		print i;
+		i = i + 1;
+	}
 )src";
 
 int main()

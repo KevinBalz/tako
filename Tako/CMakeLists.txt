@@ -56,6 +56,7 @@ add_library(${TAKO_DLL}
 	"include/Scripting/Interpreter.hpp"
 	"include/Scripting/Environment.hpp"
 	"include/Scripting/ScriptValue.hpp"
+	"src/Scripting/ScriptValue.cpp"
 	"include/Scripting/Resolver.hpp"
 	"include/Scripting/Chunk.hpp"
 	"include/Scripting/VM.hpp"

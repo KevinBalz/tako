@@ -5,7 +5,8 @@
 
 //#define DEBUG_TRACE_EXECUTION
 
-#define STACK_MAX 256
+#define FRAMES_MAX 64
+#define STACK_MAX (FRAMES_MAX * 255)
 
 namespace tako::Scripting
 {
@@ -16,6 +17,13 @@ namespace tako::Scripting
 		RUNTIME_ERROR
 	};
 
+	struct CallFrame
+	{
+		ObjFunction* function;
+		U8* ip;
+		DynamicValue* slots;
+	};
+
 	class VM
 	{
 	public:
@@ -24,6 +32,7 @@ namespace tako::Scripting
 		{
 			ResetStack();
 			objects = nullptr;
+			frameCount = 0;
 		}
 
 		InterpretResult Interpret(std::string_view source)
@@ -32,28 +41,28 @@ namespace tako::Scripting
 			auto ast = parser.Parse();
 			Resolver resolver;
 			resolver.Resolve(ast);
-			Chunk chunk;
 
 			Compiler comp;
-			comp.Compile(&chunk, &resolver, ast);
+			auto function = comp.Compile(&resolver, ast);
 
-			chunk.Disassemble("test");
+			function->chunk.Disassemble("<script>");
 
-			return Interpret(&chunk);
-		}
+			Push(function);
+			CallFrame* frame = &frames[frameCount++];
+			frame->function = function;
+			frame->ip = &function->chunk.code[0];
+			frame->slots = stack;
 
-		InterpretResult Interpret(Chunk* chunk)
-		{
-			this->chunk = chunk;
-			ip = &chunk->code[0];
 			return Run();
 		}
 
 		InterpretResult Run()
 		{
-#define READ_BYTE() (*ip++)
-#define READ_OPCODE() ((OpCode) *ip++)
-#define READ_CONSTANT() (chunk->constants[READ_BYTE()])
+			CallFrame* frame = &frames[frameCount - 1];
+#define READ_BYTE() (*frame->ip++)
+#define READ_OPCODE() ((OpCode) *frame->ip++)
+#define READ_CONSTANT() (frame->function->chunk.constants[READ_BYTE()])
+#define READ_SHORT() (frame->ip += 2, (U16)((frame->ip[-2] << 8) | frame->ip[-1]))
 #define READ_STRING() static_cast<ObjString*>(READ_CONSTANT().as.obj)
 #define BINARY_OP(op) \
 		do \
@@ -67,6 +76,7 @@ namespace tako::Scripting
 			double a = Pop().as.number; \
 			Push(a op b); \
 		} while (false)
+
 
 			for (;;)
 			{
@@ -89,13 +99,13 @@ namespace tako::Scripting
 					case OpCode::GET_LOCAL:
 					{
 						U8 slot = READ_BYTE();
-						Push(stack[slot]);
+						Push(frame->slots[slot]);
 						break;
 					}
 					case OpCode::SET_LOCAL:
 					{
 						U8 slot = READ_BYTE();
-						stack[slot] = Peek(0);
+						frame->slots[slot] = Peek(0);
 						break;
 					}
 					case OpCode::GET_GLOBAL:
@@ -166,6 +176,36 @@ namespace tako::Scripting
 						std::cout << std::endl;
 						break;
 					}
+					case OpCode::JUMP:
+					{
+						U16 offset = READ_SHORT();
+						frame->ip += offset;
+						break;
+					}
+					case OpCode::JUMP_IF_FALSE:
+					{
+						U16 offset = READ_SHORT();
+						if (!Peek(0).IsTruthy())
+						{
+							frame->ip += offset;
+						}
+						break;
+					}
+					case OpCode::JUMP_IF_TRUE:
+					{
+						U16 offset = READ_SHORT();
+						if (Peek(0).IsTruthy())
+						{
+							frame->ip += offset;
+						}
+						break;
+					}
+					case OpCode::LOOP:
+					{
+						U16 offset = READ_SHORT();
+						frame->ip -= offset;
+						break;
+					}
 					case OpCode::RETURN:
 					{
 						return InterpretResult::OK;
@@ -174,6 +214,7 @@ namespace tako::Scripting
 				}
 			}
 #undef READ_BYTE
+#undef READ_SHORT
 #undef READ_OPCODE
 #undef READ_CONSTANT
 #undef READ_STRING
@@ -202,10 +243,12 @@ namespace tako::Scripting
 			stackTop = &stack[0];
 		}
 
-		Chunk* chunk;
-		U8* ip;
+		//Chunk* chunk;
+		//U8* ip;
 		DynamicValue stack[STACK_MAX];
 		DynamicValue* stackTop;
+		CallFrame frames[FRAMES_MAX];
+		int frameCount;
 		Obj* objects;
 		std::unordered_map<std::string, DynamicValue> globals;
 	};

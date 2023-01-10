@@ -2,22 +2,31 @@
 #include "AST.hpp"
 #include "Chunk.hpp"
 #include "Resolver.hpp"
+#include "Object.hpp"
 
 namespace tako::Scripting
 {
+	enum class FunctionType
+	{
+		Function,
+		Script
+	};
+
 	class Compiler
 	{
 	public:
 
-		void Compile(Chunk* chunk, Resolver* resolver, const Program& ast)
+		ObjFunction* Compile(Resolver* resolver, const Program& ast)
 		{
-			compilingChunk = chunk;
 			this->resolver = resolver;
+			this->function = nullptr;
+			this->function = new ObjFunction();
 			for (auto& dec : ast.declarations)
 			{
 				Compile(dec);
 			}
 			Emit(OpCode::RETURN);
+			return this->function;
 		}
 
 		void Compile(const Declaration& declaration)
@@ -41,6 +50,7 @@ namespace tako::Scripting
 						auto global = IdentifierConstant(dec.identifier);
 						DefineVariable(global);
 					}
+					// if its not global, its a local variable on the stack so nothing to do here
 				}
 				else if constexpr (std::is_same_v<T, FunctionDeclaration>)
 				{
@@ -85,9 +95,34 @@ namespace tako::Scripting
 				}
 				else if constexpr (std::is_same_v<T, IfStatement>)
 				{
+					Compile(stmt.condition);
+					auto thenJump = EmitJump(OpCode::JUMP_IF_FALSE);
+					Emit(OpCode::POP);
+
+					Compile(*stmt.then);
+
+					auto elseJump = EmitJump(OpCode::JUMP);
+					PatchJump(thenJump);
+					Emit(OpCode::POP);
+
+					if (stmt.elseBranch)
+					{
+						Compile(*stmt.elseBranch.value());
+					}
+					PatchJump(elseJump);
 				}
 				else if constexpr (std::is_same_v<T, WhileStatement>)
 				{
+					int loopStart = currentChunk()->code.size();
+					Compile(stmt.condition);
+					int exitJump = EmitJump(OpCode::JUMP_IF_FALSE);
+
+					Emit(OpCode::POP);
+					Compile(*stmt.body);
+					EmitLoop(loopStart);
+
+					PatchJump(exitJump);
+					Emit(OpCode::POP);
 				}
 				else if constexpr (std::is_same_v<T, ReturnStatement>)
 				{
@@ -171,6 +206,14 @@ namespace tako::Scripting
 				}
 				else if constexpr (std::is_same_v<T, Logical>)
 				{
+					Compile(*expr.left);
+
+					auto endJump = EmitJump(expr.op == TokenType::And ? OpCode::JUMP_IF_FALSE : OpCode::JUMP_IF_TRUE);
+
+					Emit(OpCode::POP);
+					Compile(*expr.right);
+
+					PatchJump(endJump);
 				}
 			}, expression);
 		}
@@ -247,14 +290,50 @@ namespace tako::Scripting
 			Emit(OpCode::DEFINE_GLOBAL, global);
 		}
 
+		int EmitJump(OpCode instruction)
+		{
+			Emit(instruction);
+			Emit(0xff);
+			Emit(0xff);
+			return currentChunk()->code.size() - 2;
+		}
+
+		void PatchJump(int offset)
+		{
+			int jump = currentChunk()->code.size() - offset - 2;
+
+			if (jump > std::numeric_limits<U16>::max())
+			{
+				LOG_ERR("Too much code to jump over.");
+			}
+
+			currentChunk()->code[offset] = (jump >> 8) & 0xff;
+			currentChunk()->code[offset + 1] = jump & 0xff;
+		}
+
+		void EmitLoop(int loopStart)
+		{
+			Emit(OpCode::LOOP);
+
+			int offset = currentChunk()->code.size() - loopStart + 2;
+			if (offset > std::numeric_limits<U16>::max())
+			{
+				LOG_ERR("Loop body to large.");
+			}
+
+			Emit((offset >> 8) & 0xff);
+			Emit(offset & 0xff);
+		}
+
 	private:
 
 		Chunk* currentChunk()
 		{
-			return compilingChunk;
+			return &function->chunk;
 		}
 
-		Chunk* compilingChunk;
+		ObjFunction* function;
+		FunctionType type;
 		Resolver* resolver;
 	};
 }

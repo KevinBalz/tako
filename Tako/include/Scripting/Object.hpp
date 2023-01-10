@@ -1,9 +1,12 @@
 #pragma once
 
+#include "Chunk.hpp"
+
 namespace tako::Scripting
 {
 	enum class ObjType
 	{
+		Function,
 		String,
 	};
 
@@ -39,6 +42,18 @@ namespace tako::Scripting
 		virtual ~ObjString() override
 		{
 			delete[] chars;
+		}
+	};
+
+	struct ObjFunction final : public Obj
+	{
+		int arity;
+		Chunk chunk;
+		ObjString* name;
+
+		explicit ObjFunction() : Obj(ObjType::Function)
+		{
+			arity = 0;
 		}
 	};
 }

@@ -17,6 +17,7 @@ namespace tako::Scripting
 	public:
 		void Resolve(const Program& ast)
 		{
+			locals.push_back({"", 0});
 			for (auto& dec : ast.declarations)
 			{
 				Resolve(dec);
