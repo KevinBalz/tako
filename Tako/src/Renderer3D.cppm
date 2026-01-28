@@ -280,6 +280,11 @@ namespace tako
 
 		Skybox CreateSkybox(Texture cubemap);
 		void RenderSkybox(Skybox skybox);
+
+		GraphicsContext* GetContext() const
+		{
+			return m_context;
+		}
 	protected:
 		GraphicsContext* m_context;
 		Sampler m_sampler;
