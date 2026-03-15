@@ -2,16 +2,63 @@ module;
 #include "Utility.hpp"
 #include <array>
 #include <cstddef>
+#include <vector>
 export module Tako.Input;
 
 export import Tako.InputEvent;
 import Tako.Math;
+import Tako.HandleVec;
+import Tako.NumberTypes;
+import Tako.StringView;
 
 namespace tako
 {
+	export struct InputAction
+	{
+		U64 value;
+	};
+
+	struct KeyBinding
+	{
+		Key key;
+	};
+
+	struct InputActionEntry
+	{
+		std::string name;
+		std::vector<KeyBinding> keyBindings;
+	};
+
 	export class Input : public IInputEventHandler
 	{
 	public:
+		InputAction CreateAction(StringView name)
+		{
+			InputActionEntry act;
+			act.name = name;
+			return m_actions.Insert(std::move(act));
+		}
+
+		void Bind(InputAction action, Key key)
+		{
+			auto& act = m_actions[action];
+			act.keyBindings.push_back({key});
+		}
+
+		bool GetActionDown(InputAction action)
+		{
+			auto& act = m_actions[action];
+			for (auto& binding : act.keyBindings)
+			{
+				if (GetKeyDown(binding.key))
+				{
+					return true;
+				}
+			}
+
+			return false;
+		}
+
 		bool HandleInputEvent(InputEvent& evt) override
 		{
 			switch (evt.GetType())
@@ -49,7 +96,6 @@ namespace tako
 			return false; //TODO: Investige if events should be preventend from bubbling up
 		}
 
-
 		void Update();
 		bool GetKey(Key key);
 		bool GetKeyDown(Key key);
@@ -60,6 +106,8 @@ namespace tako
 		Vector2 GetMouseMovement();
 		bool GetMouseButton(MouseButton button);
 	private:
+		HandleVec<InputAction, InputActionEntry> m_actions;
+
 		Vector2 m_mousePosition;
 		Vector2 m_prevMousePosition;
 		Vector2 m_curMousePosition;

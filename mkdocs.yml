@@ -8,6 +8,7 @@ nav:
     - Core:
       - Job System: systems/jobsystem.md
       - Reflection: systems/reflection.md
+      - Input: systems/input.md
     - ECS: systems/ecs.md
 theme:
   name: material
