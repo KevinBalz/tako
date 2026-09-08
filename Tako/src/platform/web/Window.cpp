@@ -91,6 +91,8 @@ namespace tako
 			{7, Key::Gamepad_RT},
 			{8, Key::Gamepad_Select},
 			{9, Key::Gamepad_Start},
+			{10, Key::Gamepad_LS},
+			{11, Key::Gamepad_RS},
 			{12, Key::Gamepad_Dpad_Up},
 			{13, Key::Gamepad_Dpad_Down},
 			{14, Key::Gamepad_Dpad_Left},

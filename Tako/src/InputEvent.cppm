@@ -90,6 +90,7 @@ export namespace tako
 		F11,
 		F12,
 		Backspace,
+		//TODO: refactor out gamepad button
 		Gamepad_A,
 		Gamepad_B,
 		Gamepad_X,
@@ -104,6 +105,8 @@ export namespace tako
 		Gamepad_LT,
 		Gamepad_RB,
 		Gamepad_RT,
+		Gamepad_LS,
+		Gamepad_RS,
 		Unknown
 	};
 
